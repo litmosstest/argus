@@ -1,0 +1,112 @@
+name: Validate
+
+on:
+  push:
+    paths:
+      - 'config/**'
+      - 'docker-compose.yml'
+      - 'voice/**'
+      - 'huggingface/**'
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - 'config/**'
+      - 'docker-compose.yml'
+      - 'voice/**'
+      - 'huggingface/**'
+
+jobs:
+
+  validate-compose:
+    name: docker-compose config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          cp .env.example .env
+          docker compose config --quiet
+          echo "✓ docker-compose.yml valid"
+
+  validate-yaml:
+    name: YAML lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install yamllint
+      - run: |
+          yamllint -d relaxed config/frigate.yml
+          echo "✓ frigate.yml valid"
+
+  validate-python:
+    name: Python syntax (voice)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pyflakes
+      - run: |
+          python -m pyflakes voice/assistant.py
+          python -m pyflakes voice/stt.py
+          python -m pyflakes voice/tts.py
+          python -m pyflakes voice/llm.py
+          python -m pyflakes voice/frigate_events.py
+          echo "✓ Voice Python files valid"
+
+  validate-hf-space:
+    name: Hugging Face Space
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pyflakes
+      - run: |
+          python -m pyflakes huggingface/app.py
+          echo "✓ huggingface/app.py valid"
+      - name: Check HF README frontmatter
+        run: |
+          python3 -c "
+          content = open('huggingface/README.md').read()
+          assert '---' in content, 'Missing YAML frontmatter'
+          assert 'sdk: gradio' in content, 'Missing sdk: gradio'
+          assert 'license: apache-2.0' in content, 'Missing license'
+          assert 'app_file: app.py' in content, 'Missing app_file'
+          print('✓ HF README frontmatter valid')
+          "
+
+  check-licences:
+    name: Apache 2.0 headers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          missing=0
+          for f in voice/assistant.py voice/stt.py voice/tts.py \
+                   voice/llm.py voice/frigate_events.py \
+                   huggingface/app.py; do
+            if ! grep -q "SPDX-License-Identifier: Apache-2.0" "$f"; then
+              echo "MISSING header: $f"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] && echo "✓ All files have Apache 2.0 SPDX headers"
+          exit $missing
+
+  check-secrets:
+    name: No secrets committed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          if git ls-files --error-unmatch .env 2>/dev/null; then
+            echo "ERROR: .env is tracked by git"
+            exit 1
+          fi
+          if grep -rE 'sk-ant-[a-zA-Z0-9-]+' .; then
+            echo "ERROR: Anthropic API key found in repo"
+            exit 1
+          fi
+          echo "✓ No secrets detected"

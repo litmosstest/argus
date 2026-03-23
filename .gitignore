@@ -1,0 +1,23 @@
+# Secrets
+.env
+
+# Frigate data
+data/
+
+# Voice model files (large binaries — download via scripts/download_models.sh)
+voice/models/*.onnx
+voice/models/*.onnx.json
+voice/models/*.hef
+voice/models/decoder_assets/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# macOS / editor
+.DS_Store
+.vscode/
+.idea/
+*.swp

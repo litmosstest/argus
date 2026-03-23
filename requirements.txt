@@ -1,0 +1,30 @@
+# Argus voice assistant — Python dependencies
+# Install: pip install -r requirements.txt --break-system-packages
+
+# ─── STT: Hailo-10H hybrid Whisper ───────────────────────────────────────────
+# hailo_platform is installed system-wide by scripts/install_hailo.sh
+# It is NOT on PyPI — do not add it here.
+
+onnxruntime>=1.17.0          # CPU-side Whisper decoder
+transformers>=4.40.0         # Whisper tokenizer / processor
+librosa>=0.10.0              # Mel spectrogram for encoder input
+faster-whisper>=1.0.0        # CPU fallback when Hailo is absent
+
+# ─── LLM: hailo-ollama is a system binary, not a Python package ──────────────
+# Installed by scripts/install_hailo.sh — no pip entry needed.
+# We call it via its HTTP API using Python's built-in urllib.
+
+# ─── Audio I/O ───────────────────────────────────────────────────────────────
+sounddevice>=0.4.6
+soundfile>=0.12.1
+numpy>=1.24.0
+
+# ─── MQTT (live Frigate events) ──────────────────────────────────────────────
+paho-mqtt>=2.0.0
+
+# ─── Utilities ───────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0
+
+# ─── TTS: install piper separately (large binary) ────────────────────────────
+# pip install piper-tts --break-system-packages
+# Voice model downloaded by scripts/download_models.sh

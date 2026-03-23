@@ -1,0 +1,110 @@
+# Argus — Frigate NVR configuration
+# Detection: CPU (Hailo-10H Frigate support in development — see README)
+# Cameras: USB webcam (add RTSP cameras via docs/cameras.md)
+
+mqtt:
+  enabled: true
+  host: mqtt
+  port: 1883
+  topic_prefix: frigate
+  client_id: frigate
+
+database:
+  path: /data/db/frigate.db
+
+# ─── go2rtc ──────────────────────────────────────────────────────────────────
+go2rtc:
+  streams:
+    webcam:
+      - "device:///dev/video0#video=640x480"
+
+# ─── Detector ─────────────────────────────────────────────────────────────────
+# CPU detection. Adequate for 1-2 cameras on a Pi 5.
+# Hailo-10H support is in active development by the Hailo team.
+detectors:
+  cpu:
+    type: cpu
+    num_threads: 3
+
+# ─── Objects ─────────────────────────────────────────────────────────────────
+objects:
+  track:
+    - person
+    - car
+    - cat
+    - dog
+  filters:
+    person:
+      min_score: 0.6
+      threshold: 0.7
+    car:
+      min_score: 0.5
+      threshold: 0.7
+
+# ─── Cameras ─────────────────────────────────────────────────────────────────
+cameras:
+  webcam:
+    enabled: true
+    ffmpeg:
+      inputs:
+        - path: rtsp://127.0.0.1:8554/webcam
+          roles:
+            - detect
+        - path: rtsp://127.0.0.1:8554/webcam
+          roles:
+            - record
+      hwaccel_args: preset-rpi-64-h264
+
+    detect:
+      enabled: true
+      width: 640
+      height: 480
+      fps: 5
+
+    record:
+      enabled: true
+      retain:
+        days: 7
+        mode: motion
+      events:
+        retain:
+          default: 14
+          mode: active_objects
+
+    snapshots:
+      enabled: true
+      timestamp: true
+      bounding_box: true
+      retain:
+        default: 14
+
+    motion:
+      threshold: 25
+      improve_contrast: true
+      mask: []
+
+# ─── Global record / snapshot defaults ───────────────────────────────────────
+record:
+  enabled: true
+  retain:
+    days: 3
+    mode: motion
+
+snapshots:
+  enabled: true
+  timestamp: true
+  bounding_box: true
+  retain:
+    default: 14
+
+birdseye:
+  enabled: true
+  mode: motion
+
+timestamp_style:
+  position: tl
+  format: "%Y-%m-%d %H:%M:%S"
+  color:
+    red: 255
+    green: 255
+    blue: 255

@@ -1,0 +1,58 @@
+services:
+
+  # ─── Frigate NVR ──────────────────────────────────────────────────────────
+  # Detection runs on CPU (Hailo-10H Frigate support is in development).
+  # The Hailo-10H is used for Whisper STT and LLM inference in the voice pipeline.
+  frigate:
+    container_name: frigate
+    image: ghcr.io/blakeblackshear/frigate:stable
+    restart: unless-stopped
+    stop_grace_period: 30s
+    privileged: true
+    shm_size: "256mb"
+    devices:
+      - ${WEBCAM_DEVICE:-/dev/video0}:/dev/video0
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./config/frigate.yml:/config/config.yml:ro
+      - ${RECORDINGS_PATH:-./data/recordings}:/media/frigate
+      - frigate-db:/data/db
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 512000000
+    ports:
+      - "8971:8971"
+      - "5000:5000"
+      - "8554:8554"
+      - "8555:8555/tcp"
+      - "8555:8555/udp"
+    environment:
+      TZ: ${TZ:-Europe/London}
+    depends_on:
+      - mqtt
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ─── Mosquitto MQTT broker ────────────────────────────────────────────────
+  # Frigate publishes detection events here.
+  # The voice assistant subscribes for live event notifications.
+  mqtt:
+    container_name: mqtt
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    volumes:
+      - ./config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+    ports:
+      - "1883:1883"
+
+volumes:
+  frigate-db:
+  mosquitto-data:
+  mosquitto-log:
