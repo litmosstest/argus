@@ -42,6 +42,36 @@ detecting people, cars, animals. Events are stored in SQLite and published over 
 4. Transcribed question + recent Frigate events → **Qwen2.5 1.5B LLM** on Hailo-10H via hailo-ollama
 5. Answer spoken aloud by **Piper TTS** (local, no cloud)
 
+## System diagrams
+
+### Hardware
+
+![Argus hardware diagram](docs/hardware-diagram.svg)
+
+| Component | Role |
+|---|---|
+| Raspberry Pi 5 (16GB) | Host CPU — runs Frigate, Docker, OS |
+| Hailo-10H AI HAT+ 2 | NPU — Whisper STT encoder + Qwen2.5 LLM |
+| USB SSD | Frigate recordings and SQLite event database |
+| USB webcams | Camera feeds (Logitech C920/C922 recommended) |
+| USB microphone | Voice input for the assistant |
+| Speaker | Piper TTS audio output |
+| Ethernet | Reliable network for SSH and remote access |
+
+### Software and data flow
+
+![Argus software diagram](docs/software-diagram.svg)
+
+**Vision pipeline** (Pi 5 CPU)
+
+Camera frames flow from USB devices through `go2rtc` for stream management, then into Frigate NVR running in Docker. Frigate performs object detection on the CPU, storing events in SQLite on the USB SSD and publishing live event notifications over MQTT via Mosquitto.
+
+**Voice pipeline** (Hailo-10H NPU + Pi 5 CPU)
+
+Speech is captured from the USB microphone. The Whisper encoder runs on the Hailo-10H NPU (~8× faster than CPU), converting audio to embeddings. The Whisper decoder runs on the Pi 5 CPU with KV caching to produce the transcript. The question plus recent Frigate event context is sent to Qwen2.5-1.5B, which runs entirely on the Hailo-10H via `hailo-ollama`. The answer is spoken by Piper TTS locally.
+
+No data leaves the device at any point.
+
 ## Quick start
 
 ```bash
