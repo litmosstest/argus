@@ -13,6 +13,16 @@ Cameras ──► Frigate NVR (CPU detection) ──► Event store (SQLite + MQ
 Microphone ──► Whisper STT (Hailo-10H) ──► Local LLM (Hailo-10H) ──► Piper TTS ──► Speaker
 ```
 
+## System diagrams
+
+### Hardware
+
+![Argus hardware diagram](docs/hardware-diagram.svg)
+
+### Software and data flow
+
+![Argus software diagram](docs/software-diagram.svg)
+
 ## Hardware
 
 | Component | Part | Notes |
@@ -26,51 +36,8 @@ Microphone ──► Whisper STT (Hailo-10H) ──► Local LLM (Hailo-10H) ─
 
 > **Note on Frigate + Hailo-10H:** Frigate currently supports Hailo-8/8L for object detection.
 > Hailo-10H support is [in active development](https://community.hailo.ai/t/hailo-10h-smart-home-integration-status-update/18852)
-> by the Hailo team. Until it lands, Argus runs Frigate detection on the Pi 5 CPU, which is
-> perfectly usable for a PoC with 1–2 cameras. The voice pipeline (STT + LLM) runs on the
-> Hailo-10H with no compromise.
-
-## How it works
-
-**Object detection** — Frigate NVR runs in Docker and watches your cameras continuously,
-detecting people, cars, animals. Events are stored in SQLite and published over MQTT.
-
-**Voice pipeline** — entirely on-device:
-1. Press ENTER (or use a button) — microphone starts recording
-2. **Whisper encoder** runs on the Hailo-10H NPU (~8× faster than CPU)
-3. **Whisper decoder** runs on the Pi 5 CPU with KV caching
-4. Transcribed question + recent Frigate events → **Qwen2.5 1.5B LLM** on Hailo-10H via hailo-ollama
-5. Answer spoken aloud by **Piper TTS** (local, no cloud)
-
-## System diagrams
-
-### Hardware
-
-![Argus hardware diagram](docs/hardware-diagram.svg)
-
-| Component | Role |
-|---|---|
-| Raspberry Pi 5 (16GB) | Host CPU — runs Frigate, Docker, OS |
-| Hailo-10H AI HAT+ 2 | NPU — Whisper STT encoder + Qwen2.5 LLM |
-| USB SSD | Frigate recordings and SQLite event database |
-| USB webcams | Camera feeds (Logitech C920/C922 recommended) |
-| USB microphone | Voice input for the assistant |
-| Speaker | Piper TTS audio output |
-| Ethernet | Reliable network for SSH and remote access |
-
-### Software and data flow
-
-![Argus software diagram](docs/software-diagram.svg)
-
-**Vision pipeline** (Pi 5 CPU)
-
-Camera frames flow from USB devices through `go2rtc` for stream management, then into Frigate NVR running in Docker. Frigate performs object detection on the CPU, storing events in SQLite on the USB SSD and publishing live event notifications over MQTT via Mosquitto.
-
-**Voice pipeline** (Hailo-10H NPU + Pi 5 CPU)
-
-Speech is captured from the USB microphone. The Whisper encoder runs on the Hailo-10H NPU (~8× faster than CPU), converting audio to embeddings. The Whisper decoder runs on the Pi 5 CPU with KV caching to produce the transcript. The question plus recent Frigate event context is sent to Qwen2.5-1.5B, which runs entirely on the Hailo-10H via `hailo-ollama`. The answer is spoken by Piper TTS locally.
-
-No data leaves the device at any point.
+> by the Hailo team. Until it lands, Argus runs Frigate detection on the Pi 5 CPU.
+> The voice pipeline (STT + LLM) runs on the Hailo-10H with no compromise.
 
 ## Quick start
 
@@ -85,7 +52,7 @@ chmod +x scripts/setup.sh && ./scripts/setup.sh
 chmod +x scripts/install_hailo.sh && ./scripts/install_hailo.sh
 # System reboots — SSH back in and continue
 
-# 3. Download Whisper model assets and pull LLM
+# 3. Download Whisper model assets and Piper voice model
 chmod +x scripts/download_models.sh && ./scripts/download_models.sh
 
 # 4. Configure
@@ -103,14 +70,148 @@ python voice/assistant.py
 
 Frigate web UI: `http://argus.local:8971`
 
+> **First time?** See the full step-by-step setup guide below.
+> If you hit issues, check [docs/troubleshooting.md](docs/troubleshooting.md).
+
+## Full setup guide
+
+### 1. Flash the OS
+
+Use [Raspberry Pi Imager](https://www.raspberrypi.com/software/) to write
+**Raspberry Pi OS Trixie Lite (64-bit)** to your boot media.
+
+In Raspberry Pi Imager → Edit Settings before writing:
+- Hostname: `argus`
+- Enable SSH
+- Set username and password
+- Configure Wi-Fi (or skip for Ethernet)
+
+### 2. First boot
+
+```bash
+ssh pi@argus.local
+sudo apt update && sudo apt full-upgrade -y
+sudo reboot
+```
+
+### 3. Mount the USB SSD
+
+```bash
+lsblk                              # find your SSD — usually /dev/sda
+sudo mkfs.ext4 /dev/sda1           # WARNING: erases the drive
+sudo mkdir -p /mnt/recordings
+sudo mount /dev/sda1 /mnt/recordings
+echo '/dev/sda1 /mnt/recordings ext4 defaults,nofail 0 2' | sudo tee -a /etc/fstab
+```
+
+Set `RECORDINGS_PATH=/mnt/recordings/frigate` in `.env`.
+
+### 4. Clone and run setup
+
+```bash
+git clone https://github.com/YOUR_USERNAME/argus.git
+cd argus
+chmod +x scripts/setup.sh && ./scripts/setup.sh
+```
+
+### 5. Install Hailo driver
+
+```bash
+chmod +x scripts/install_hailo.sh && ./scripts/install_hailo.sh
+```
+
+The Pi reboots. SSH back in and verify:
+
+```bash
+ls -l /dev/hailo0
+hailortcli fw-control identify
+```
+
+### 6. Install hailo-ollama
+
+hailo-ollama requires downloading the GenAI model zoo `.deb` from
+[hailo.ai/developer-zone](https://hailo.ai/developer-zone) (free registration).
+
+```bash
+# After downloading hailo_gen_ai_model_zoo_X.X.X_arm64.deb:
+sudo dpkg -i hailo_gen_ai_model_zoo_*.deb
+
+# Start hailo-ollama and pull the LLM
+hailo-ollama &
+curl -s http://localhost:8000/api/pull \
+  -H 'Content-Type: application/json' \
+  -d '{"model": "qwen2.5:1.5b", "stream": false}'
+```
+
+Then enable as a service so it starts on boot:
+
+```bash
+sudo systemctl enable hailo-ollama
+sudo systemctl start hailo-ollama
+```
+
+### 7. Download Whisper and TTS models
+
+```bash
+chmod +x scripts/download_models.sh && ./scripts/download_models.sh
+```
+
+### 8. Configure
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Key settings:
+- `RECORDINGS_PATH=/mnt/recordings/frigate`
+- `WEBCAM_DEVICE=/dev/video0` (verify with `ls /dev/video*`)
+- `AUDIO_INPUT_DEVICE=0` (verify with `arecord -l`)
+- `HAILO_OLLAMA_MODEL=qwen2.5:1.5b`
+
+### 9. Start Frigate
+
+```bash
+docker compose up -d
+docker compose logs -f frigate
+```
+
+Open `http://argus.local:8971` — log in with the admin credentials printed
+in the logs on first start. Change the password under Settings → Users.
+
+### 10. Start the voice assistant
+
+```bash
+pip install -r voice/requirements.txt --break-system-packages
+python voice/assistant.py
+```
+
+Press **ENTER** to start recording, **ENTER** again to stop.
+
+## Stopping and starting
+
+```bash
+# Stop
+docker compose down
+
+# Start
+docker compose up -d
+
+# Status
+docker compose ps
+
+# Live logs
+docker compose logs -f frigate
+```
+
 ## Project structure
 
 ```
 argus/
-├── docker-compose.yml          # Frigate + Mosquitto
+├── docker-compose.yml
 ├── .env.example
 ├── config/
-│   ├── frigate.yml             # Camera and detection config
+│   ├── frigate.yml             # Frigate 0.17 compatible config
 │   └── mosquitto.conf
 ├── voice/
 │   ├── assistant.py            # Main push-to-talk loop
@@ -121,23 +222,21 @@ argus/
 │   ├── requirements.txt
 │   └── README.md
 ├── scripts/
-│   ├── setup.sh                # System dependencies + Docker
-│   ├── install_hailo.sh        # Hailo-10H driver + hailo-ollama
-│   └── download_models.sh      # Whisper HEF + Piper voice model
+│   ├── setup.sh
+│   ├── install_hailo.sh
+│   └── download_models.sh
 ├── docs/
-│   ├── cameras.md              # Adding RTSP PoE cameras
+│   ├── hardware-diagram.svg
+│   ├── software-diagram.svg
+│   ├── cameras.md
 │   └── troubleshooting.md
 ├── huggingface/
 │   ├── app.py                  # Gradio demo Space
-│   ├── README.md               # HF Space card
+│   ├── README.md
 │   └── requirements.txt
 └── .github/workflows/
     └── validate.yml
 ```
-
-## Troubleshooting
-
-See [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Contributing
 

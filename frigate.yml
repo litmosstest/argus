@@ -1,6 +1,6 @@
 # Argus — Frigate NVR configuration
 # Detection: CPU (Hailo-10H Frigate support in development — see README)
-# Cameras: USB webcam (add RTSP cameras via docs/cameras.md)
+# Requires: Frigate 0.17+
 
 mqtt:
   enabled: true
@@ -12,21 +12,16 @@ mqtt:
 database:
   path: /data/db/frigate.db
 
-# ─── go2rtc ──────────────────────────────────────────────────────────────────
 go2rtc:
   streams:
     webcam:
-      - "device:///dev/video0#video=640x480"
+      - "ffmpeg:device?video=/dev/video0#video=h264#hardware"
 
-# ─── Detector ─────────────────────────────────────────────────────────────────
-# CPU detection. Adequate for 1-2 cameras on a Pi 5.
-# Hailo-10H support is in active development by the Hailo team.
 detectors:
   cpu:
     type: cpu
     num_threads: 3
 
-# ─── Objects ─────────────────────────────────────────────────────────────────
 objects:
   track:
     - person
@@ -41,7 +36,6 @@ objects:
       min_score: 0.5
       threshold: 0.7
 
-# ─── Cameras ─────────────────────────────────────────────────────────────────
 cameras:
   webcam:
     enabled: true
@@ -53,42 +47,29 @@ cameras:
         - path: rtsp://127.0.0.1:8554/webcam
           roles:
             - record
-      hwaccel_args: preset-rpi-64-h264
-
     detect:
       enabled: true
       width: 640
       height: 480
       fps: 5
-
     record:
       enabled: true
-      retain:
-        days: 7
-        mode: motion
-      events:
-        retain:
-          default: 14
-          mode: active_objects
-
     snapshots:
       enabled: true
       timestamp: true
       bounding_box: true
-      retain:
-        default: 14
-
     motion:
       threshold: 25
       improve_contrast: true
-      mask: []
 
-# ─── Global record / snapshot defaults ───────────────────────────────────────
 record:
   enabled: true
-  retain:
-    days: 3
-    mode: motion
+  alerts:
+    retain:
+      days: 14
+  detections:
+    retain:
+      days: 14
 
 snapshots:
   enabled: true
