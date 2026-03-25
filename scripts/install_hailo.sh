@@ -7,11 +7,11 @@
 # You may obtain a copy of the License at
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# install_hailo.sh — Hailo-10H driver + hailo-ollama setup for Argus
+# install_hailo.sh — Hailo-8 driver + hailo-ollama setup for Argus
 #
 # Installs:
 #   1. HailoRT PCIe driver (DKMS) — needed for Whisper STT on the NPU
-#   2. hailo-ollama — Ollama-compatible LLM server for the Hailo-10H
+#   2. hailo-ollama — Ollama-compatible LLM server for the Hailo-8
 #   3. Pulls the text LLM (Qwen2.5-1.5B) and vision model (llava-phi3)
 #   4. Sets up hailo-ollama as a systemd service
 #
@@ -23,7 +23,7 @@ ARGUS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo ""
 echo "╔══════════════════════════════════════╗"
-echo "║      Hailo-10H driver + LLM setup   ║"
+echo "║       Hailo-8 driver + LLM setup    ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
 echo "OS:     $(lsb_release -ds 2>/dev/null || grep PRETTY /etc/os-release | cut -d= -f2)"
@@ -49,13 +49,10 @@ echo "► Installing dkms..."
 sudo apt install -y dkms linux-headers-$(uname -r)
 
 # ─── Install HailoRT from Raspberry Pi repository ─────────────────────────────
-# hailo-h10-all is the Hailo-10H metapackage — includes the correct PCIe driver,
-# firmware, Python bindings, and TAPPAS for the AI HAT+ 2.
-# NOTE: hailo-all is the Hailo-8 package — do NOT install that instead.
-# Without hailo-h10-all the driver loads but never binds to the device,
-# so /dev/hailo0 will not appear.
-echo "► Installing HailoRT for Hailo-10H (hailo-h10-all)..."
-sudo apt install -y hailo-h10-all
+# hailo-all is the Hailo-8 metapackage — includes the PCIe driver,
+# firmware, Python bindings, and TAPPAS for the Pi AI HAT.
+echo "► Installing HailoRT for Hailo-8 (hailo-all)..."
+sudo apt install -y hailo-all
 
 # ─── Fix PCIe page size (prevents Frigate inference errors) ──────────────────
 MODPROBE_CONF=/etc/modprobe.d/hailo_pci.conf

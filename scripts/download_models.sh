@@ -7,10 +7,10 @@
 # You may obtain a copy of the License at
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# download_models.sh — downloads Whisper Hailo-10H model assets and Piper TTS voice model
+# download_models.sh — downloads Whisper Hailo-8 model assets and Piper TTS voice model
 #
 # Downloads:
-#   - Whisper Tiny encoder HEF (compiled for Hailo-10H)
+#   - Whisper Tiny encoder HEF (compiled for Hailo-8)
 #   - Whisper Tiny decoder ONNX (runs on CPU with KV caching)
 #   - Decoder tokenization assets (from ktomanek/edge_whisper)
 #   - Piper TTS en_GB-alan-medium voice model
@@ -29,19 +29,13 @@ echo "║      Downloading Argus models        ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
 
-# ─── Whisper encoder HEF (Hailo-10H) ─────────────────────────────────────────
+# ─── Whisper encoder HEF (Hailo-8) ────────────────────────────────────────────
 ENCODER_HEF="$MODELS_DIR/whisper_tiny_encoder.hef"
 if [ ! -f "$ENCODER_HEF" ]; then
-    echo "► Whisper Tiny encoder HEF (Hailo-10H)..."
-    # Primary: Hailo model zoo (Hailo-10H variant)
+    echo "► Whisper Tiny encoder HEF (Hailo-8)..."
     wget -q --show-progress \
-        "https://hailo-model-zoo.s3.eu-west-2.amazonaws.com/ModelZoo/Compiled/v2.14.0/hailo10h/whisper_tiny_encoder.hef" \
-        -O "$ENCODER_HEF" 2>/dev/null || {
-        echo "  Primary source failed — trying Hailo-8 variant (also compatible)..."
-        wget -q --show-progress \
-            "https://github.com/ktomanek/edge_whisper/raw/main/assets/hailo/hailo8l/whisper_tiny_encoder.hef" \
-            -O "$ENCODER_HEF"
-    }
+        "https://github.com/ktomanek/edge_whisper/raw/main/assets/hailo/hailo8l/whisper_tiny_encoder.hef" \
+        -O "$ENCODER_HEF"
     echo "  ✓ Encoder HEF downloaded"
 else
     echo "► Encoder HEF already present — skipping"

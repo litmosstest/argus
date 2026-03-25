@@ -3,14 +3,14 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)](LICENSE)
 [![Hugging Face Space](https://img.shields.io/badge/🤗%20Hugging%20Face-Space-blue)](https://huggingface.co/spaces/YOUR_HF_USERNAME/argus)
 
-**Fully local AI camera system — Frigate NVR + Hailo-10H voice assistant on a Raspberry Pi 5.**
+**Fully local AI camera system — Frigate NVR + Hailo-8 voice assistant on a Raspberry Pi 5.**
 
 Argus watches your cameras, detects objects, and answers questions about what it has seen — entirely on-device. No cloud, no subscriptions, no data leaving your home.
 
 ```
 Cameras ──► Frigate NVR (CPU detection) ──► Event store (SQLite + MQTT)
                                                         │
-Microphone ──► Whisper STT (Hailo-10H) ──► Local LLM (Hailo-10H) ──► Piper TTS ──► Speaker
+Microphone ──► Whisper STT (Hailo-8) ──► Local LLM (Hailo-8) ──► Piper TTS ──► Speaker
 ```
 
 ## System diagrams
@@ -28,16 +28,15 @@ Microphone ──► Whisper STT (Hailo-10H) ──► Local LLM (Hailo-10H) ─
 | Component | Part | Notes |
 |---|---|---|
 | SBC | Raspberry Pi 5 (16GB) | 8GB also works |
-| AI accelerator | Raspberry Pi AI HAT+ 2 (Hailo-10H, 40 TOPS) | Runs STT + LLM locally |
+| AI accelerator | Raspberry Pi AI HAT (Hailo-8, 13 TOPS) | Runs STT + LLM locally |
 | Storage | USB SSD ≥256GB | SD cards wear out under continuous writes |
 | Camera | Any UVC USB webcam | Logitech C920/C922 recommended |
 | Microphone | Any USB microphone | |
 | Speaker | USB or 3.5mm | |
 
-> **Note on Frigate + Hailo-10H:** Frigate currently supports Hailo-8/8L for object detection.
-> Hailo-10H support is [in active development](https://community.hailo.ai/t/hailo-10h-smart-home-integration-status-update/18852)
-> by the Hailo team. Until it lands, Argus runs Frigate detection on the Pi 5 CPU.
-> The voice pipeline (STT + LLM) runs on the Hailo-10H with no compromise.
+> **Note:** Frigate officially supports Hailo-8/8L for object detection.
+> Currently, Argus runs Frigate detection on the Pi 5 CPU while the voice pipeline
+> (STT + LLM) runs fully accelerated on the Hailo-8.
 
 ## Quick start
 
@@ -48,7 +47,7 @@ cd argus
 # 1. System setup (Docker, audio deps, webcam check)
 chmod +x scripts/setup.sh && ./scripts/setup.sh
 
-# 2. Install Hailo-10H drivers and hailo-ollama
+# 2. Install Hailo-8 drivers and hailo-ollama
 chmod +x scripts/install_hailo.sh && ./scripts/install_hailo.sh
 # System reboots — SSH back in and continue
 
@@ -215,7 +214,7 @@ argus/
 │   └── mosquitto.conf
 ├── voice/
 │   ├── assistant.py            # Main push-to-talk loop
-│   ├── stt.py                  # Hailo-10H hybrid Whisper STT
+| stt.py                  # Hailo-8 hybrid Whisper STT
 │   ├── llm.py                  # hailo-ollama LLM client
 │   ├── tts.py                  # Piper TTS wrapper
 │   ├── frigate_events.py       # SQLite + MQTT event queries

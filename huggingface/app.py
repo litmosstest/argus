@@ -12,7 +12,7 @@ Argus — Hugging Face Spaces demo
 Demonstrates the event query layer from the Argus project.
 
 On the Pi, the full stack runs locally:
-  Whisper STT (Hailo-10H) → Qwen2.5 LLM (Hailo-10H via hailo-ollama) → Piper TTS
+  Whisper STT (Hailo-8) → Qwen2.5 LLM (Hailo-8 via hailo-ollama) → Piper TTS
 
 This Space runs the same query logic using the Hugging Face Inference API
 so anyone can try it without owning a Pi. Set HF_TOKEN in Space secrets to enable.
@@ -52,7 +52,7 @@ def generate_sample_events(n: int = 15) -> str:
 
 SYSTEM_PROMPT = """\
 You are Argus — a local AI security camera assistant running on a Raspberry Pi 5 \
-with a Hailo-10H AI accelerator. You help the user understand what their cameras \
+with a Hailo-8 AI accelerator. You help the user understand what their cameras \
 have detected.
 
 Answer based strictly on the event log provided. Be concise — your answer will \
@@ -105,7 +105,7 @@ DESCRIPTION = """
 
 Ask natural language questions about what your cameras have detected.
 
-On the Pi, speech recognition and the LLM both run on the **Hailo-10H NPU** — \
+On the Pi, speech recognition and the LLM both run on the **Hailo-8 NPU** — \
 no cloud, no API keys. This Space uses the HF Inference API to run the same \
 [Qwen2.5-1.5B](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct) model so \
 you can try the query layer without the hardware.
@@ -153,7 +153,7 @@ with gr.Blocks(title="Argus", theme=gr.themes.Default()) as demo:
 
     gr.Markdown(
         "---\n"
-        "**On the Pi**, Whisper speech recognition runs on the Hailo-10H NPU "
+        "**On the Pi**, Whisper speech recognition runs on the Hailo-8 NPU "
         "(~8× faster than CPU), and the LLM runs via hailo-ollama at ~6–8 tokens/sec. "
         "See the [setup guide](https://github.com/YOUR_USERNAME/argus) to build your own."
     )

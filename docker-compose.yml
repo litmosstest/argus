@@ -1,8 +1,9 @@
 services:
 
   # ─── Frigate NVR ──────────────────────────────────────────────────────────
-  # Detection runs on CPU (Hailo-10H Frigate support is in development).
-  # The Hailo-10H is used for Whisper STT and LLM inference in the voice pipeline.
+  # Detection runs on CPU; the Hailo-8 is used for Whisper STT and LLM inference
+  # in the voice pipeline. Hailo-8 Frigate detector support can be enabled once
+  # a compiled HEF is added to config/frigate.yml.
   frigate:
     container_name: frigate
     image: ghcr.io/blakeblackshear/frigate:stable

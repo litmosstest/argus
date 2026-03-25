@@ -74,7 +74,7 @@ nano ~/argus/.env
 
 ---
 
-## Hailo-10H issues
+## Hailo-8 issues
 
 ### `/dev/hailo0` not present after reboot
 
@@ -93,23 +93,23 @@ sudo reboot
 
 ### Driver loads but no `/dev/hailo0` created
 
-The most common cause on an AI HAT+ 2 is installing `hailo-all` (the Hailo-8
-metapackage) instead of `hailo-h10-all` (the Hailo-10H package). The Hailo-8
-driver loads successfully but its PCI device ID alias doesn't match the
-Hailo-10H, so it never binds to the device.
+The most common cause is installing `hailo-h10-all` (the Hailo-10H package)
+instead of `hailo-all` (the Hailo-8 package). The Hailo-10H driver loads
+successfully but its PCI device ID alias doesn't match the Hailo-8, so it
+never binds to the device.
 
 Fix:
 
 ```bash
-sudo apt install hailo-h10-all
+sudo apt install hailo-all
 sudo reboot
 ```
 
 To confirm you have the right package:
 
 ```bash
-dpkg -l | grep hailo-h10
-# Should show: hailo-h10-all
+dpkg -l | grep hailo-all
+# Should show: hailo-all
 ```
 
 You can also verify by checking the driver's PCI alias matches your device:
@@ -210,7 +210,7 @@ python3 -c "import hailo_platform; print('ok')"
 If missing: `sudo apt install -y python3-hailort`
 
 The assistant falls back to `faster-whisper` (CPU) automatically — startup
-banner shows `STT: faster-whisper-cpu` vs `STT: hailo-10h-hybrid`.
+banner shows `STT: faster-whisper-cpu` vs `STT: hailo-8-hybrid`.
 
 ### No audio input
 
@@ -238,6 +238,6 @@ If model missing: `./scripts/download_models.sh`
 | Component | Expected |
 |---|---|
 | Frigate detection (CPU, 1 camera) | ~150–200ms/frame |
-| Whisper STT (Hailo-10H hybrid) | ~400–600ms for 5s utterance |
+| Whisper STT (Hailo-8 hybrid) | ~400–600ms for 5s utterance |
 | Whisper STT (CPU fallback) | ~4–6 seconds |
-| LLM response (Hailo-10H, qwen2.5:1.5b) | 6–9 tokens/sec, ~5–10s answer |
+| LLM response (Hailo-8, qwen2.5:1.5b) | 6–9 tokens/sec, ~5–10s answer |

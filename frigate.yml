@@ -1,5 +1,5 @@
 # Argus — Frigate NVR configuration
-# Detection: CPU (Hailo-10H Frigate support in development — see README)
+# Detection: CPU (Hailo-8 detector can be enabled — see README)
 # Requires: Frigate 0.17+
 
 mqtt:

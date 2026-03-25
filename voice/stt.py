@@ -7,10 +7,10 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 """
-stt.py — Hailo-10H hybrid Whisper speech-to-text
+stt.py — Hailo-8 hybrid Whisper speech-to-text
 
 Architecture:
-  Encoder → Hailo-10H NPU (compiled .hef, ~8× faster than CPU)
+  Encoder → Hailo-8 NPU (compiled .hef, ~8× faster than CPU)
   Decoder → Pi 5 CPU via ONNX Runtime with KV caching
 
 Falls back to faster-whisper (CPU only) if Hailo is unavailable,
@@ -42,7 +42,7 @@ N_FFT                = 400
 
 class HailoWhisperSTT:
     """
-    Hybrid Hailo-10H encoder + CPU decoder Whisper transcription.
+    Hybrid Hailo-8 encoder + CPU decoder Whisper transcription.
     Gracefully falls back to faster-whisper (CPU) if the HAT is absent.
     """
 
@@ -80,7 +80,7 @@ class HailoWhisperSTT:
             )
             self._init_cpu_decoder()
             self._hailo_ok = True
-            logger.info("Hailo-10H Whisper encoder ready.")
+            logger.info("Hailo-8 Whisper encoder ready.")
 
         except Exception as exc:
             logger.warning("Hailo init failed (%s) — falling back to CPU.", exc)
@@ -112,7 +112,7 @@ class HailoWhisperSTT:
             self._fallback = WhisperModel("base.en", device="cpu", compute_type="int8")
             logger.info(
                 "STT: using faster-whisper (CPU). "
-                "Attach Hailo-10H AI HAT+ 2 for ~8× speedup."
+                "Attach Hailo-8 Pi AI HAT for ~8× speedup."
             )
         except ImportError:
             raise RuntimeError(
@@ -208,4 +208,4 @@ class HailoWhisperSTT:
 
     @property
     def backend(self) -> str:
-        return "hailo-10h-hybrid" if self._hailo_ok else "faster-whisper-cpu"
+        return "hailo-8-hybrid" if self._hailo_ok else "faster-whisper-cpu"

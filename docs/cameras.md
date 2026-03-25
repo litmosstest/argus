@@ -81,6 +81,6 @@ Default Dahua credentials are `admin` / `admin` — change these immediately
 via the camera's web UI at its IP address before adding it to Frigate.
 
 Each camera added increases CPU load. Two Logitech webcams or two Dahua PoE
-cameras run comfortably on the Pi 5 CPU for detection. For more cameras,
-Hailo-10H Frigate support (in development by Hailo) will significantly
-increase capacity when it lands.
+cameras run comfortably on the Pi 5 CPU for detection. The Hailo-8 supports
+Frigate detection — see the Frigate docs for adding a Hailo detector to
+`config/frigate.yml` to increase capacity.

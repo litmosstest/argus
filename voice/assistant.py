@@ -10,7 +10,7 @@
 assistant.py — Argus voice assistant
 
 Fully local pipeline — no cloud, no API keys:
-  ENTER → record mic → Hailo-10H Whisper STT → Hailo-10H LLM → Piper TTS
+  ENTER → record mic → Hailo-8 Whisper STT → Hailo-8 LLM → Piper TTS
 
 Controls:
   Press ENTER to start recording.

@@ -9,11 +9,11 @@
 """
 llm.py — Local LLM client for Argus
 
-Calls hailo-ollama running on the Hailo-10H NPU via its Ollama-compatible
+Calls hailo-ollama running on the Hailo-8 NPU via its Ollama-compatible
 REST API (http://localhost:8000/api/chat).
 
 No cloud dependency. No API key required.
-Model: Qwen2.5-1.5B (default) — ~6-8 tokens/sec on Hailo-10H.
+Model: Qwen2.5-1.5B (default) — ~6-8 tokens/sec on Hailo-8.
 """
 
 import os
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """\
 You are Argus — a local AI security camera assistant running on a Raspberry Pi 5 \
-with a Hailo-10H AI accelerator. You help the user understand what their cameras have detected.
+with a Hailo-8 AI accelerator. You help the user understand what their cameras have detected.
 
 You will be given a log of recent detection events from Frigate NVR. Answer the user's \
 question based strictly on this data. Be concise — your answer will be spoken aloud, \
@@ -87,7 +87,7 @@ def ask_local_llm(
     model: str = "qwen2:1.5b",
 ) -> str:
     """
-    Query the local Hailo-10H LLM with Frigate event context.
+    Query the local Hailo-8 LLM with Frigate event context.
     Returns a plain string suitable for TTS playback.
     """
     # Build event context from SQLite history
