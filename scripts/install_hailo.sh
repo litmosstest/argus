@@ -49,9 +49,13 @@ echo "► Installing dkms..."
 sudo apt install -y dkms linux-headers-$(uname -r)
 
 # ─── Install HailoRT from Raspberry Pi repository ─────────────────────────────
-# The Pi repository provides the correct version matching hailo-ollama.
-echo "► Installing HailoRT (hailo-all)..."
-sudo apt install -y hailo-all
+# hailo-h10-all is the Hailo-10H metapackage — includes the correct PCIe driver,
+# firmware, Python bindings, and TAPPAS for the AI HAT+ 2.
+# NOTE: hailo-all is the Hailo-8 package — do NOT install that instead.
+# Without hailo-h10-all the driver loads but never binds to the device,
+# so /dev/hailo0 will not appear.
+echo "► Installing HailoRT for Hailo-10H (hailo-h10-all)..."
+sudo apt install -y hailo-h10-all
 
 # ─── Fix PCIe page size (prevents Frigate inference errors) ──────────────────
 MODPROBE_CONF=/etc/modprobe.d/hailo_pci.conf
