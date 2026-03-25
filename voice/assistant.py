@@ -34,6 +34,7 @@ import sounddevice as sd
 from frigate_events import FrigateLiveEvents
 from llm import ask_local_llm
 from stt import HailoWhisperSTT
+from thumbnail_describer import ThumbnailDescriber
 from tts import PiperTTS
 
 logging.basicConfig(
@@ -54,6 +55,11 @@ CONTEXT_HOURS   = int(os.environ.get("VOICE_CONTEXT_HOURS", 24))
 CONTEXT_EVENTS  = int(os.environ.get("VOICE_CONTEXT_EVENTS", 20))
 OLLAMA_URL      = os.environ.get("HAILO_OLLAMA_URL", "http://localhost:8000")
 OLLAMA_MODEL    = os.environ.get("HAILO_OLLAMA_MODEL", "qwen2:1.5b")
+VISION_MODEL    = os.environ.get("HAILO_OLLAMA_VISION_MODEL", "llava-phi3")
+DESCRIPTIONS_DB = os.environ.get(
+    "DESCRIPTIONS_DB_PATH",
+    str(Path(__file__).parent.parent / "data" / "db" / "descriptions.db"),
+)
 
 
 # ─── Audio recording ─────────────────────────────────────────────────────────
@@ -106,7 +112,13 @@ def main():
     print("║  Connecting to Frigate MQTT...               ║")
     live_events = FrigateLiveEvents(host=MQTT_HOST, port=MQTT_PORT)
 
-    model_str = f"{OLLAMA_MODEL} @ {OLLAMA_URL}"
+    # Vision model not yet available in Hailo model zoo
+    # Uncomment when llava-phi3 or another vision model is released
+    # print("║  Starting thumbnail describer...             ║")
+    # describer = ThumbnailDescriber(vision_model=VISION_MODEL, db_path=DESCRIPTIONS_DB)
+    # describer.start()
+
+    model_str  = f"{OLLAMA_MODEL} @ {OLLAMA_URL}"
     print(f"║  LLM: {model_str:<38}║")
     print("╠══════════════════════════════════════════════╣")
     print("║  Press ENTER to ask a question. Ctrl+C quit. ║")
@@ -135,6 +147,7 @@ def main():
                     question=question,
                     db_path=FRIGATE_DB,
                     live_events=live_events,
+                    descriptions_db_path=DESCRIPTIONS_DB,
                     hours=CONTEXT_HOURS,
                     limit=CONTEXT_EVENTS,
                     base_url=OLLAMA_URL,
@@ -150,6 +163,7 @@ def main():
     except KeyboardInterrupt:
         print("\n\nShutting down.")
         live_events.stop()
+        # describer.stop()  # Describer disabled until vision model available
         sys.exit(0)
 
 

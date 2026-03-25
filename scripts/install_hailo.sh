@@ -12,7 +12,7 @@
 # Installs:
 #   1. HailoRT PCIe driver (DKMS) — needed for Whisper STT on the NPU
 #   2. hailo-ollama — Ollama-compatible LLM server for the Hailo-10H
-#   3. Pulls the default LLM (Qwen2.5-1.5B)
+#   3. Pulls the text LLM (Qwen2.5-1.5B) and vision model (llava-phi3)
 #   4. Sets up hailo-ollama as a systemd service
 #
 # Must be run AFTER setup.sh. Reboots after driver installation.
@@ -72,11 +72,16 @@ echo ""
 echo "  Once downloaded, install with:"
 echo "    sudo dpkg -i hailo_gen_ai_model_zoo_5.x.x_arm64.deb"
 echo ""
-echo "  Then pull the default model:"
+echo "  Then pull the required models:"
 echo "    hailo-ollama serve &"
 echo "    curl -s http://localhost:8000/api/pull \\"
 echo "      -H 'Content-Type: application/json' \\"
 echo "      -d '{\"model\": \"qwen2:1.5b\", \"stream\": false}'"
+echo ""
+echo "  Also pull the vision model for thumbnail descriptions:"
+echo "    curl -s http://localhost:8000/api/pull \\"
+echo "      -H 'Content-Type: application/json' \\"
+echo "      -d '{\"model\": \"llava-phi3\", \"stream\": false}'"
 echo ""
 echo "  See docs/troubleshooting.md for the full hailo-ollama setup steps."
 echo ""

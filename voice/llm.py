@@ -23,7 +23,7 @@ import urllib.request
 import urllib.error
 from datetime import datetime
 
-from frigate_events import get_recent_events, format_events_for_context, FrigateLiveEvents
+from frigate_events import get_recent_events, get_descriptions, format_events_for_context, FrigateLiveEvents
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +79,7 @@ def ask_local_llm(
     question: str,
     db_path: str,
     live_events: FrigateLiveEvents,
+    descriptions_db_path: str | None = None,
     camera_names: list[str] | None = None,
     hours: int = 24,
     limit: int = 20,
@@ -92,7 +93,8 @@ def ask_local_llm(
     # Build event context from SQLite history
     try:
         history = get_recent_events(db_path, hours=hours, limit=limit)
-        history_text = format_events_for_context(history)
+        descs   = get_descriptions(descriptions_db_path or "", [e["id"] for e in history])
+        history_text = format_events_for_context(history, descriptions=descs)
     except FileNotFoundError as exc:
         history_text = f"(Event history unavailable: {exc})"
 

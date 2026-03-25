@@ -16,7 +16,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ./config/frigate.yml:/config/config.yml:ro
       - ${RECORDINGS_PATH:-./data/recordings}:/media/frigate
-      - frigate-db:/data/db
+      - ./data/db:/data/db
       - type: tmpfs
         target: /tmp/cache
         tmpfs:
@@ -53,6 +53,5 @@ services:
       - "1883:1883"
 
 volumes:
-  frigate-db:
   mosquitto-data:
   mosquitto-log:

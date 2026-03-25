@@ -48,7 +48,7 @@ def get_recent_events(
     try:
         rows = conn.execute(
             """
-            SELECT camera, label,
+            SELECT id, camera, label,
                    ROUND(top_score, 2)             AS score,
                    start_time, end_time,
                    ROUND(end_time - start_time, 1) AS duration,
@@ -71,6 +71,7 @@ def get_recent_events(
             if r["end_time"] else "ongoing"
         )
         events.append({
+            "id":       r["id"],
             "camera":   r["camera"],
             "label":    r["label"],
             "score":    r["score"],
@@ -82,16 +83,46 @@ def get_recent_events(
     return events
 
 
-def format_events_for_context(events: list[dict]) -> str:
+def get_descriptions(descriptions_db_path: str, event_ids: list[str]) -> dict[str, str]:
+    """
+    Return a mapping of {event_id: description} for the given IDs.
+    Returns an empty dict if the descriptions database does not yet exist.
+    """
+    path = Path(descriptions_db_path)
+    if not path.exists() or not event_ids:
+        return {}
+
+    placeholders = ",".join("?" * len(event_ids))
+    conn = sqlite3.connect(str(path))
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            f"SELECT event_id, description FROM event_descriptions "
+            f"WHERE event_id IN ({placeholders})",
+            event_ids,
+        ).fetchall()
+    finally:
+        conn.close()
+
+    return {r["event_id"]: r["description"] for r in rows}
+
+
+def format_events_for_context(
+    events: list[dict],
+    descriptions: dict[str, str] | None = None,
+) -> str:
     if not events:
         return "No detection events in the requested time window."
     lines = [f"Detection history ({len(events)} events):"]
     for e in events:
         clip = " [clip]" if e["clip"] else ""
-        lines.append(
+        line = (
             f"  {e['start']} — {e['label']} on '{e['camera']}' "
             f"(confidence {e['score']:.0%}, {e['duration']}s){clip}"
         )
+        if descriptions and e.get("id") in descriptions:
+            line += f"\n    Snapshot: {descriptions[e['id']]}"
+        lines.append(line)
     return "\n".join(lines)
 
 

@@ -52,6 +52,7 @@ jobs:
           python -m pyflakes voice/tts.py
           python -m pyflakes voice/llm.py
           python -m pyflakes voice/frigate_events.py
+          python -m pyflakes voice/thumbnail_describer.py
           echo "✓ Voice Python files valid"
 
   validate-hf-space:
@@ -86,6 +87,7 @@ jobs:
           missing=0
           for f in voice/assistant.py voice/stt.py voice/tts.py \
                    voice/llm.py voice/frigate_events.py \
+                   voice/thumbnail_describer.py \
                    huggingface/app.py; do
             if ! grep -q "SPDX-License-Identifier: Apache-2.0" "$f"; then
               echo "MISSING header: $f"

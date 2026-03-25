@@ -1,0 +1,93 @@
+# Argus — Frigate NVR configuration
+
+mqtt:
+  enabled: true
+  host: mqtt
+  port: 1883
+  topic_prefix: frigate
+  client_id: frigate
+
+database:
+  path: /data/db/frigate.db
+
+go2rtc:
+  streams:
+    webcam:
+      - "ffmpeg:device?video=/dev/video0#video=h264#hardware"
+
+detectors:
+  cpu:
+    type: cpu
+    num_threads: 3
+
+objects:
+  track:
+    - person
+    - car
+    - cat
+    - dog
+  filters:
+    person:
+      min_score: 0.6
+      threshold: 0.7
+    car:
+      min_score: 0.5
+      threshold: 0.7
+
+cameras:
+  webcam:
+    enabled: true
+    ffmpeg:
+      inputs:
+        - path: rtsp://127.0.0.1:8554/webcam
+          roles:
+            - detect
+        - path: rtsp://127.0.0.1:8554/webcam
+          roles:
+            - record
+    detect:
+      enabled: true
+      width: 640
+      height: 480
+      fps: 5
+    record:
+      enabled: true
+    snapshots:
+      enabled: true
+      timestamp: true
+      bounding_box: true
+    motion:
+      threshold: 25
+      improve_contrast: true
+
+record:
+  enabled: true
+  alerts:
+    retain:
+      days: 14
+  detections:
+    retain:
+      days: 14
+
+snapshots:
+  enabled: true
+  timestamp: true
+  bounding_box: true
+  retain:
+    default: 14
+
+birdseye:
+  enabled: true
+  mode: motion
+
+semantic_search:
+  enabled: True
+  reindex: False
+
+timestamp_style:
+  position: tl
+  format: "%Y-%m-%d %H:%M:%S"
+  color:
+    red: 255
+    green: 255
+    blue: 255
