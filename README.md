@@ -33,12 +33,15 @@ cd argus
 # 1. System setup (Docker, ffmpeg, webcam check)
 chmod +x scripts/setup.sh && ./scripts/setup.sh
 
-# 2. Install Hailo-8 driver
+# 2. Reboot if the kernel was upgraded (setup.sh will tell you if so)
+sudo reboot
+
+# 3. Install Hailo-8 driver
 # On Bookworm: reboots twice (re-run the script after the first reboot)
 # On Trixie:   reboots once
 chmod +x scripts/install_hailo.sh && ./scripts/install_hailo.sh
 
-# 3. After reboot — configure and start
+# 4. After reboot — configure and start
 cp .env.example .env
 nano .env
 docker compose up -d

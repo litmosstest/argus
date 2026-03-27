@@ -98,8 +98,20 @@ echo "╔═══════════════════════�
 echo "║           Setup complete ✓           ║"
 echo "╚══════════════════════════════════════╝"
 echo ""
-echo "Next steps:"
-echo "  1.  Install Hailo driver:   ./scripts/install_hailo.sh"
-echo "  2.  Edit environment:       nano $ENV_FILE"
-echo "  3.  Start Frigate:          docker compose up -d"
+
+if [ -f /var/run/reboot-required ]; then
+    echo "⚠  A kernel upgrade was installed. Reboot before running install_hailo.sh"
+    echo "   (building the driver against the wrong kernel headers will silently fail)"
+    echo ""
+    echo "Next steps:"
+    echo "  1.  Reboot:                 sudo reboot"
+    echo "  2.  Install Hailo driver:   ./scripts/install_hailo.sh"
+    echo "  3.  Edit environment:       nano $ENV_FILE"
+    echo "  4.  Start Frigate:          docker compose up -d"
+else
+    echo "Next steps:"
+    echo "  1.  Install Hailo driver:   ./scripts/install_hailo.sh"
+    echo "  2.  Edit environment:       nano $ENV_FILE"
+    echo "  3.  Start Frigate:          docker compose up -d"
+fi
 echo ""

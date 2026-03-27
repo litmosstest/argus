@@ -44,6 +44,40 @@ else
     [[ "$ans" =~ ^[Yy]$ ]] || exit 1
 fi
 
+# ─── Reboot-required guard ────────────────────────────────────────────────────
+#
+# setup.sh runs apt full-upgrade, which can upgrade the kernel. If the system
+# hasn't rebooted since that upgrade, the running kernel won't match the newly
+# installed one and the driver will be compiled against the wrong headers.
+#
+# Debian sets /var/run/reboot-required whenever a package needing a reboot is
+# installed. We also cross-check uname -r against the installed kernel headers
+# to catch cases where the flag file was already cleared.
+#
+_NEED_REBOOT=false
+
+if [ -f /var/run/reboot-required ]; then
+    _NEED_REBOOT=true
+fi
+
+# Belt-and-suspenders: check that headers for the running kernel are installed
+if ! dpkg -l "linux-headers-$(uname -r)" 2>/dev/null | grep -q "^ii"; then
+    _NEED_REBOOT=true
+fi
+
+if $_NEED_REBOOT; then
+    echo "✗  A system reboot is required before installing the Hailo driver."
+    echo "   A kernel upgrade was installed but the system hasn't rebooted yet."
+    echo "   Running kernel : $(uname -r)"
+    echo ""
+    echo "   Please reboot and then re-run this script:"
+    echo "     sudo reboot"
+    echo "     # (after reboot)"
+    echo "     ./scripts/install_hailo.sh"
+    echo ""
+    exit 1
+fi
+
 # ─── Enable PCIe Gen 3 ────────────────────────────────────────────────────────
 CONFIG=/boot/firmware/config.txt
 if ! grep -q "pciex1_gen=3" "$CONFIG"; then
