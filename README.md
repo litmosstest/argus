@@ -11,7 +11,7 @@ Argus is a minimal, fully local home security setup: Frigate running in Docker, 
 | Component | Part | Notes |
 |---|---|---|
 | SBC | Raspberry Pi 5 (8GB or 16GB) | |
-| AI accelerator | Raspberry Pi AI HAT+ (Hailo-8, 13 TOPS) | PCIe-attached, runs object detection |
+| AI accelerator | Raspberry Pi AI HAT+ (Hailo-8, 26 TOPS) | PCIe-attached, runs object detection |
 | Storage | USB SSD ≥256GB | SD cards wear out under continuous writes |
 | Camera | USB webcam (UVC-compatible) | Logitech C920/C922 recommended |
 
@@ -51,7 +51,7 @@ Frigate web UI: `http://argus.local:8971`
 ### 1. Flash the OS
 
 Use [Raspberry Pi Imager](https://www.raspberrypi.com/software/) to write
-**Raspberry Pi OS Trixie Lite (64-bit)** to your boot media.
+**Raspberry Pi OS Trixie (64-bit)** to your boot media.
 
 In Imager → Edit Settings before writing:
 - Enable SSH
