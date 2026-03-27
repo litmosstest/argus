@@ -1,18 +1,18 @@
 services:
 
   # ─── Frigate NVR ──────────────────────────────────────────────────────────
-  # Detection runs on CPU; the Hailo-8 is used for Whisper STT and LLM inference
-  # in the voice pipeline. Hailo-8 Frigate detector support can be enabled once
-  # a compiled HEF is added to config/frigate.yml.
+  # Object detection runs on the Hailo-8 NPU (hailo8l detector).
+  # /dev/hailo0 is passed through so Frigate can access the PCIe device.
   frigate:
     container_name: frigate
-    image: ghcr.io/blakeblackshear/frigate:stable
+    image: ghcr.io/blakeblackshear/frigate:stable-h8l
     restart: unless-stopped
     stop_grace_period: 30s
     privileged: true
     shm_size: "256mb"
     devices:
       - ${WEBCAM_DEVICE:-/dev/video0}:/dev/video0
+      - /dev/hailo0:/dev/hailo0
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ./config/frigate.yml:/config/config.yml:ro
@@ -40,8 +40,7 @@ services:
       start_period: 60s
 
   # ─── Mosquitto MQTT broker ────────────────────────────────────────────────
-  # Frigate publishes detection events here.
-  # The voice assistant subscribes for live event notifications.
+  # Frigate publishes detection events to MQTT.
   mqtt:
     container_name: mqtt
     image: eclipse-mosquitto:2

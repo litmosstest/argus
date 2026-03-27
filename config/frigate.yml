@@ -1,4 +1,5 @@
 # Argus — Frigate NVR configuration
+version: 0.18-0
 
 mqtt:
   enabled: true
@@ -13,12 +14,21 @@ database:
 go2rtc:
   streams:
     webcam:
-      - "ffmpeg:device?video=/dev/video0#video=h264#hardware"
+      - ffmpeg:device?video=/dev/video0#video=h264#hardware
 
 detectors:
-  cpu:
-    type: cpu
-    num_threads: 3
+  hailo:
+    type: hailo8l
+    device: PCIe
+
+model:
+  width: 640
+  height: 640
+  input_tensor: nhwc
+  input_pixel_format: rgb
+  input_dtype: int
+  model_type: yolox
+  labelmap_path: /labelmap/coco-80.txt
 
 objects:
   track:
@@ -80,13 +90,9 @@ birdseye:
   enabled: true
   mode: motion
 
-semantic_search:
-  enabled: True
-  reindex: False
-
 timestamp_style:
   position: tl
-  format: "%Y-%m-%d %H:%M:%S"
+  format: '%Y-%m-%d %H:%M:%S'
   color:
     red: 255
     green: 255

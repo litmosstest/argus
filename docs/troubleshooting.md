@@ -14,14 +14,12 @@ Fix — create the correct structure and move files:
 
 ```bash
 cd ~/argus
-mkdir -p config voice docs scripts huggingface
+mkdir -p config docs scripts
 
 mv mosquitto.conf config/
 mv frigate.yml config/
-mv assistant.py stt.py llm.py tts.py frigate_events.py requirements.txt voice/
-mv setup.sh install_hailo.sh download_models.sh scripts/
+mv setup.sh install_hailo.sh scripts/
 mv cameras.md troubleshooting.md docs/
-mv app.py huggingface/
 ```
 
 Then retry `docker compose up -d`.
@@ -47,25 +45,9 @@ sudo usermod -aG docker $USER
 Then **log out and back in** — `newgrp docker` requires a password on Trixie
 and may not work. A full logout/login is the reliable fix.
 
-### piper not found after install
-
-piper installs to `~/.local/bin` which may not be on PATH by default:
-
-```bash
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-piper --help
-```
-
-### piper crashes with `ModuleNotFoundError: No module named 'pathvalidate'`
-
-```bash
-pip install pathvalidate --break-system-packages
-```
-
 ### `.env` not created by setup.sh
 
-If setup.sh can't find `.env.example`, create it manually:
+Create it manually:
 
 ```bash
 cp ~/argus/.env.example ~/argus/.env
@@ -78,61 +60,51 @@ nano ~/argus/.env
 
 ### `/dev/hailo0` not present after reboot
 
+First verify whether the driver module is loaded:
+
 ```bash
-sudo modprobe hailo_pci
+lsmod | grep hailo_pci
 dmesg | grep -i hailo
-ls -l /dev/hailo0
 ```
 
-If it loads manually but disappears on reboot:
+If the module is present but the device is not:
 
 ```bash
-grep hailo_pci /etc/modules || echo 'hailo_pci' | sudo tee -a /etc/modules
+cat /sys/module/hailo_pci/version      # confirm correct driver version
+ls -l /lib/firmware/hailo/hailo8_fw.bin  # confirm firmware installed
+```
+
+If either is missing, re-run the installation script:
+
+```bash
+./scripts/install_hailo.sh
+```
+
+### Bookworm only: driver loads but `/dev/hailo0` never appears
+
+Raspberry Pi OS Bookworm ships a built-in Hailo driver that is incompatible
+with Frigate. The `install_hailo.sh` script handles this automatically — on
+first run it renames the built-in driver and reboots. On the second run it
+installs the correct driver.
+
+If you installed the driver manually and are seeing this issue, check whether
+the built-in driver is still active:
+
+```bash
+modinfo -n hailo_pci
+# If this returns a path like /lib/modules/.../kernel/drivers/media/pci/hailo/hailo_pci.ko.xz
+# the built-in driver is still present.
+```
+
+Rename it and allow the Frigate-built driver to take over:
+
+```bash
+BUILTIN=$(modinfo -n hailo_pci)
+sudo modprobe -r hailo_pci
+sudo mv "$BUILTIN" "${BUILTIN}.bak"
+sudo depmod -a
 sudo reboot
 ```
-
-### Driver loads but no `/dev/hailo0` created
-
-The most common cause is installing `hailo-h10-all` (the Hailo-10H package)
-instead of `hailo-all` (the Hailo-8 package). The Hailo-10H driver loads
-successfully but its PCI device ID alias doesn't match the Hailo-8, so it
-never binds to the device.
-
-Fix:
-
-```bash
-sudo apt install hailo-all
-sudo reboot
-```
-
-To confirm you have the right package:
-
-```bash
-dpkg -l | grep hailo-all
-# Should show: hailo-all
-```
-
-You can also verify by checking the driver's PCI alias matches your device:
-
-```bash
-sudo modinfo hailo_pci | grep alias
-lspci | grep -i hailo
-```
-
-### hailo-ollama not responding
-
-```bash
-systemctl status hailo-ollama
-journalctl -u hailo-ollama -n 50
-
-# Test API directly
-curl -s http://localhost:8000/api/chat \
-  -H 'Content-Type: application/json' \
-  -d '{"model": "qwen2.5:1.5b", "messages": [{"role": "user", "content": "hi"}], "stream": false}'
-```
-
-hailo-ollama requires the GenAI model zoo `.deb` from
-[hailo.ai/developer-zone](https://hailo.ai/developer-zone) (free registration).
 
 ### PCIe page size error
 
@@ -145,11 +117,14 @@ echo 'options hailo_pci force_desc_page_size=4096' | sudo tee /etc/modprobe.d/ha
 sudo reboot
 ```
 
+The `install_hailo.sh` script applies this fix automatically. Only needed if
+you installed manually.
+
 ---
 
 ## Frigate issues
 
-### Config validation errors (Frigate 0.17)
+### Config validation errors (Frigate 0.17+)
 
 The `record -> retain` schema changed in Frigate 0.16+. The old format:
 
@@ -164,7 +139,7 @@ record:
 New format:
 
 ```yaml
-# CORRECT for Frigate 0.17
+# CORRECT for Frigate 0.17+
 record:
   enabled: true
   alerts:
@@ -199,45 +174,9 @@ path not writable, `shm_size` too small for multiple cameras.
 
 ---
 
-## Voice assistant issues
-
-### `No module named hailo_platform`
-
-```bash
-python3 -c "import hailo_platform; print('ok')"
-```
-
-If missing: `sudo apt install -y python3-hailort`
-
-The assistant falls back to `faster-whisper` (CPU) automatically — startup
-banner shows `STT: faster-whisper-cpu` vs `STT: hailo-8-hybrid`.
-
-### No audio input
-
-```bash
-arecord -l
-python3 -c "import sounddevice; print(sounddevice.query_devices())"
-```
-
-Set `AUDIO_INPUT_DEVICE` in `.env` to the correct index.
-
-### Piper TTS silent
-
-```bash
-echo "Test" | piper \
-  --model voice/models/en_GB-alan-medium.onnx \
-  --output_file /tmp/test.wav && aplay /tmp/test.wav
-```
-
-If model missing: `./scripts/download_models.sh`
-
----
-
 ## Performance reference
 
 | Component | Expected |
 |---|---|
-| Frigate detection (CPU, 1 camera) | ~150–200ms/frame |
-| Whisper STT (Hailo-8 hybrid) | ~400–600ms for 5s utterance |
-| Whisper STT (CPU fallback) | ~4–6 seconds |
-| LLM response (Hailo-8, qwen2.5:1.5b) | 6–9 tokens/sec, ~5–10s answer |
+| Frigate detection (Hailo-8, 1 camera) | ~20–30ms/frame |
+| Frigate detection (CPU fallback, 1 camera) | ~150–200ms/frame |

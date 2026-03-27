@@ -8,11 +8,8 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # setup.sh — one-shot system setup for Argus
-# Run once on a freshly flashed Raspberry Pi OS Trixie Lite (64-bit)
+# Run once on a freshly flashed Raspberry Pi OS Lite (64-bit)
 # Usage: chmod +x scripts/setup.sh && ./scripts/setup.sh
-#
-# NOTE: Run this from the repo root:  ./scripts/setup.sh
-# or:  bash scripts/setup.sh
 
 set -euo pipefail
 
@@ -38,10 +35,6 @@ sudo apt install -y \
     curl git jq htop wget \
     v4l-utils \
     ffmpeg \
-    portaudio19-dev \
-    libportaudio2 \
-    alsa-utils \
-    python3-pip \
     dkms \
     linux-headers-$(uname -r)
 
@@ -54,19 +47,6 @@ if ! command -v docker &>/dev/null; then
     echo "  ⚠  Log out and back in (or run 'newgrp docker') for group changes to take effect"
 else
     echo "► Docker: $(docker --version)"
-fi
-
-# ─── piper-tts ────────────────────────────────────────────────────────────────
-echo "► Installing piper-tts..."
-pip install piper-tts pathvalidate --break-system-packages -q
-echo "  ✓ piper-tts installed"
-
-# ─── Ensure ~/.local/bin is on PATH ──────────────────────────────────────────
-if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
-    echo "► Adding ~/.local/bin to PATH in ~/.bashrc..."
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-    export PATH="$HOME/.local/bin:$PATH"
-    echo "  ✓ PATH updated (takes effect on next login)"
 fi
 
 # ─── USB SSD ──────────────────────────────────────────────────────────────────
@@ -92,11 +72,6 @@ if ls /dev/video* &>/dev/null; then
 else
     echo "  ⚠  No /dev/video* found — plug in webcam and re-run"
 fi
-
-# ─── Microphone ───────────────────────────────────────────────────────────────
-echo ""
-echo "► Audio input devices:"
-arecord -l 2>/dev/null | grep "card " | sed 's/^/  /' || echo "  ⚠  No recording devices found"
 
 # ─── .env ─────────────────────────────────────────────────────────────────────
 ENV_EXAMPLE="$ARGUS_DIR/.env.example"
@@ -125,8 +100,6 @@ echo "╚═══════════════════════�
 echo ""
 echo "Next steps:"
 echo "  1.  Install Hailo driver:   ./scripts/install_hailo.sh"
-echo "  2.  Download model assets:  ./scripts/download_models.sh"
-echo "  3.  Edit environment:       nano $ENV_FILE"
-echo "  4.  Start Frigate:          docker compose up -d"
-echo "  5.  Start voice assistant:  python voice/assistant.py"
+echo "  2.  Edit environment:       nano $ENV_FILE"
+echo "  3.  Start Frigate:          docker compose up -d"
 echo ""

@@ -1,42 +1,28 @@
-# 🦅 Argus
+# Argus
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)](LICENSE)
-[![Hugging Face Space](https://img.shields.io/badge/🤗%20Hugging%20Face-Space-blue)](https://huggingface.co/spaces/YOUR_HF_USERNAME/argus)
 
-**Fully local AI camera system — Frigate NVR + Hailo-8 voice assistant on a Raspberry Pi 5.**
+**Frigate NVR with Hailo-8 object detection on a Raspberry Pi 5.**
 
-Argus watches your cameras, detects objects, and answers questions about what it has seen — entirely on-device. No cloud, no subscriptions, no data leaving your home.
-
-```
-Cameras ──► Frigate NVR (CPU detection) ──► Event store (SQLite + MQTT)
-                                                        │
-Microphone ──► Whisper STT (Hailo-8) ──► Local LLM (Hailo-8) ──► Piper TTS ──► Speaker
-```
-
-## System diagrams
-
-### Hardware
-
-![Argus hardware diagram](docs/hardware-diagram.svg)
-
-### Software and data flow
-
-![Argus software diagram](docs/software-diagram.svg)
+Argus is a minimal, fully local home security setup: Frigate running in Docker, accelerated by the Raspberry Pi AI HAT+ (Hailo-8), with a Logitech USB webcam as the camera input. No cloud, no subscriptions.
 
 ## Hardware
 
 | Component | Part | Notes |
 |---|---|---|
-| SBC | Raspberry Pi 5 (16GB) | 8GB also works |
-| AI accelerator | Raspberry Pi AI HAT (Hailo-8, 13 TOPS) | Runs STT + LLM locally |
+| SBC | Raspberry Pi 5 (8GB or 16GB) | |
+| AI accelerator | Raspberry Pi AI HAT+ (Hailo-8, 13 TOPS) | PCIe-attached, runs object detection |
 | Storage | USB SSD ≥256GB | SD cards wear out under continuous writes |
-| Camera | Any UVC USB webcam | Logitech C920/C922 recommended |
-| Microphone | Any USB microphone | |
-| Speaker | USB or 3.5mm | |
+| Camera | USB webcam (UVC-compatible) | Logitech C920/C922 recommended |
 
-> **Note:** Frigate officially supports Hailo-8/8L for object detection.
-> Currently, Argus runs Frigate detection on the Pi 5 CPU while the voice pipeline
-> (STT + LLM) runs fully accelerated on the Hailo-8.
+## Software
+
+| Component | Detail |
+|---|---|
+| OS | Raspberry Pi OS Trixie Lite (64-bit) |
+| Frigate | Docker (`ghcr.io/blakeblackshear/frigate:stable-h8l`) |
+| Detector | `hailo8l` — runs YOLOx on the Hailo-8 NPU |
+| MQTT | Mosquitto (Docker) — Frigate event bus |
 
 ## Quick start
 
@@ -44,33 +30,21 @@ Microphone ──► Whisper STT (Hailo-8) ──► Local LLM (Hailo-8) ──�
 git clone https://github.com/YOUR_USERNAME/argus.git
 cd argus
 
-# 1. System setup (Docker, audio deps, webcam check)
+# 1. System setup (Docker, ffmpeg, webcam check)
 chmod +x scripts/setup.sh && ./scripts/setup.sh
 
-# 2. Install Hailo-8 drivers and hailo-ollama
+# 2. Install Hailo-8 driver
+# On Bookworm: reboots twice (re-run the script after the first reboot)
+# On Trixie:   reboots once
 chmod +x scripts/install_hailo.sh && ./scripts/install_hailo.sh
-# System reboots — SSH back in and continue
 
-# 3. Download Whisper model assets and Piper voice model
-chmod +x scripts/download_models.sh && ./scripts/download_models.sh
-
-# 4. Configure
-cp .env.example .env && nano .env
-
-# 5. Install voice assistant Python deps
-pip install -r voice/requirements.txt --break-system-packages
-
-# 6. Start Frigate
+# 3. After reboot — configure and start
+cp .env.example .env
+nano .env
 docker compose up -d
-
-# 7. Start the voice assistant
-python voice/assistant.py
 ```
 
 Frigate web UI: `http://argus.local:8971`
-
-> **First time?** See the full step-by-step setup guide below.
-> If you hit issues, check [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Full setup guide
 
@@ -79,21 +53,27 @@ Frigate web UI: `http://argus.local:8971`
 Use [Raspberry Pi Imager](https://www.raspberrypi.com/software/) to write
 **Raspberry Pi OS Trixie Lite (64-bit)** to your boot media.
 
-In Raspberry Pi Imager → Edit Settings before writing:
-- Hostname: `argus`
+In Imager → Edit Settings before writing:
 - Enable SSH
 - Set username and password
+- Hostname: `argus`
 - Configure Wi-Fi (or skip for Ethernet)
 
 ### 2. First boot
 
 ```bash
 ssh pi@argus.local
-sudo apt update && sudo apt full-upgrade -y
+
+# Install git and curl if not present (Lite images may omit them)
+sudo apt update && sudo apt install -y git curl
+
+sudo apt full-upgrade -y
 sudo reboot
 ```
 
-### 3. Mount the USB SSD
+### 3. Mount a USB SSD (recommended)
+
+SD cards will wear out quickly under continuous recording writes.
 
 ```bash
 lsblk                              # find your SSD — usually /dev/sda
@@ -113,95 +93,74 @@ cd argus
 chmod +x scripts/setup.sh && ./scripts/setup.sh
 ```
 
-### 5. Install Hailo driver
+### 5. Install Hailo-8 driver
 
 ```bash
 chmod +x scripts/install_hailo.sh && ./scripts/install_hailo.sh
 ```
 
-The Pi reboots. SSH back in and verify:
+The script downloads and runs Frigate's official Hailo installation script,
+which builds the PCIe driver from source, installs firmware, and sets up
+udev rules.
+
+> **Bookworm only:** On Raspberry Pi OS Bookworm the first run disables the
+> incompatible built-in kernel driver and reboots. SSH back in and
+> **re-run the script** to complete the install. Trixie users only need one run.
+
+After the final reboot, SSH back in and verify:
 
 ```bash
 ls -l /dev/hailo0
-hailortcli fw-control identify
+lsmod | grep hailo_pci
+cat /sys/module/hailo_pci/version
+ls -l /lib/firmware/hailo/hailo8_fw.bin
 ```
 
-### 6. Install hailo-ollama
-
-hailo-ollama requires downloading the GenAI model zoo `.deb` from
-[hailo.ai/developer-zone](https://hailo.ai/developer-zone) (free registration).
-
-```bash
-# After downloading hailo_gen_ai_model_zoo_X.X.X_arm64.deb:
-sudo dpkg -i hailo_gen_ai_model_zoo_*.deb
-
-# Start hailo-ollama and pull the LLM
-hailo-ollama &
-curl -s http://localhost:8000/api/pull \
-  -H 'Content-Type: application/json' \
-  -d '{"model": "qwen2.5:1.5b", "stream": false}'
-```
-
-Then enable as a service so it starts on boot:
-
-```bash
-sudo systemctl enable hailo-ollama
-sudo systemctl start hailo-ollama
-```
-
-### 7. Download Whisper and TTS models
-
-```bash
-chmod +x scripts/download_models.sh && ./scripts/download_models.sh
-```
-
-### 8. Configure
+### 6. Configure
 
 ```bash
 cp .env.example .env
 nano .env
 ```
 
-Key settings:
-- `RECORDINGS_PATH=/mnt/recordings/frigate`
-- `WEBCAM_DEVICE=/dev/video0` (verify with `ls /dev/video*`)
-- `AUDIO_INPUT_DEVICE=0` (verify with `arecord -l`)
-- `HAILO_OLLAMA_MODEL=qwen2.5:1.5b`
+Settings:
 
-### 9. Start Frigate
+| Variable | Default | Description |
+|---|---|---|
+| `TZ` | `Europe/London` | Timezone |
+| `WEBCAM_DEVICE` | `/dev/video0` | USB webcam device node |
+| `RECORDINGS_PATH` | `./data/recordings` | Where recordings are stored |
+
+Find your webcam device:
+
+```bash
+ls /dev/video*
+v4l2-ctl --list-devices
+```
+
+### 7. Start Frigate
 
 ```bash
 docker compose up -d
 docker compose logs -f frigate
 ```
 
-Open `http://argus.local:8971` — log in with the admin credentials printed
-in the logs on first start. Change the password under Settings → Users.
-
-### 10. Start the voice assistant
-
-```bash
-pip install -r voice/requirements.txt --break-system-packages
-python voice/assistant.py
-```
-
-Press **ENTER** to start recording, **ENTER** again to stop.
+Open `http://argus.local:8971`. On first start Frigate prints admin credentials
+to the log — change the password under Settings → Users.
 
 ## Stopping and starting
 
 ```bash
-# Stop
-docker compose down
-
-# Start
-docker compose up -d
-
-# Status
-docker compose ps
-
-# Live logs
-docker compose logs -f frigate
+docker compose down        # stop
+docker compose up -d       # start
+docker compose ps          # status
+docker compose logs -f     # live logs
 ```
+
+## Adding cameras
+
+The default config (`config/frigate.yml`) uses a single USB webcam. To add
+RTSP PoE cameras, see [docs/cameras.md](docs/cameras.md).
 
 ## Project structure
 
@@ -210,36 +169,21 @@ argus/
 ├── docker-compose.yml
 ├── .env.example
 ├── config/
-│   ├── frigate.yml             # Frigate 0.17 compatible config
+│   ├── frigate.yml        # Frigate NVR config (hailo8l detector, webcam)
 │   └── mosquitto.conf
-├── voice/
-│   ├── assistant.py            # Main push-to-talk loop
-| stt.py                  # Hailo-8 hybrid Whisper STT
-│   ├── llm.py                  # hailo-ollama LLM client
-│   ├── tts.py                  # Piper TTS wrapper
-│   ├── frigate_events.py       # SQLite + MQTT event queries
-│   ├── requirements.txt
-│   └── README.md
 ├── scripts/
-│   ├── setup.sh
-│   ├── install_hailo.sh
-│   └── download_models.sh
-├── docs/
-│   ├── hardware-diagram.svg
-│   ├── software-diagram.svg
-│   ├── cameras.md
-│   └── troubleshooting.md
-├── huggingface/
-│   ├── app.py                  # Gradio demo Space
-│   ├── README.md
-│   └── requirements.txt
-└── .github/workflows/
-    └── validate.yml
+│   ├── setup.sh           # System setup (Docker, deps)
+│   └── install_hailo.sh   # Hailo-8 PCIe driver install
+└── docs/
+    ├── cameras.md          # Adding USB and RTSP cameras
+    ├── troubleshooting.md
+    ├── hardware-diagram.svg
+    └── software-diagram.svg
 ```
 
-## Contributing
+## Troubleshooting
 
-PRs welcome. Open an issue before starting significant work.
+See [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Licence
 
