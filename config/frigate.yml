@@ -1,5 +1,5 @@
-# Argus — Frigate NVR configuration
-version: 0.18-0
+# Argus — Frigate NVR configuration for NVIDIA DGX Spark
+# GPU: NVIDIA GB10 (Blackwell, Compute Capability 12.1, CUDA 13+)
 
 mqtt:
   enabled: true
@@ -11,54 +11,53 @@ mqtt:
 database:
   path: /data/db/frigate.db
 
+# ─── GPU-accelerated detector ───────────────────────────────────────────────
+# ONNX Runtime with CUDA execution provider — works on ARM64 + full NVIDIA GPU.
+# The official TensorRT Frigate image targets x86_64 only; ONNX+CUDA is the
+# recommended path for the GB10 Superchip.
+detectors:
+  onnx_gpu:
+    type: onnx
+    device: cuda:0
+
+# ─── Demo video stream ───────────────────────────────────────────────────────
+# The Kitware MP4 is looped at native frame rate via FFmpeg inside go2rtc.
+# Download it first with:  scripts/setup.sh  (or see README)
 go2rtc:
   streams:
-    webcam:
-      - ffmpeg:device?video=/dev/video0#video=h264#hardware
-
-detectors:
-  hailo:
-    type: hailo8l
-    device: PCIe
-
-model:
-  width: 640
-  height: 640
-  input_tensor: nhwc
-  input_pixel_format: rgb
-  input_dtype: int
-  model_type: yolox
-  labelmap_path: /labelmap/coco-80.txt
+    demo_camera:
+      - "ffmpeg:-stream_loop -1 -re -i /config/demo/kitware_demo.mp4#video=copy"
 
 objects:
   track:
     - person
     - car
-    - cat
-    - dog
+    - truck
+    - bicycle
+    - motorcycle
   filters:
     person:
-      min_score: 0.6
+      min_score: 0.5
       threshold: 0.7
     car:
       min_score: 0.5
       threshold: 0.7
 
 cameras:
-  webcam:
+  demo_camera:
     enabled: true
     ffmpeg:
       inputs:
-        - path: rtsp://127.0.0.1:8554/webcam
+        - path: rtsp://127.0.0.1:8554/demo_camera
           roles:
             - detect
-        - path: rtsp://127.0.0.1:8554/webcam
+        - path: rtsp://127.0.0.1:8554/demo_camera
           roles:
             - record
     detect:
       enabled: true
-      width: 640
-      height: 480
+      width: 1280
+      height: 720
       fps: 5
     record:
       enabled: true
@@ -88,7 +87,7 @@ snapshots:
 
 birdseye:
   enabled: true
-  mode: motion
+  mode: objects
 
 timestamp_style:
   position: tl

@@ -4,6 +4,9 @@
 # Frigate data
 data/
 
+# Downloaded demo video (fetched by setup.sh, not committed)
+config/demo/
+
 # Python
 __pycache__/
 *.py[cod]

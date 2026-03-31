@@ -1,192 +1,218 @@
-# Argus
+# Argus — Frigate NVR on NVIDIA DGX Spark
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)](LICENSE)
 
-**Frigate NVR with Hailo-8 object detection on a Raspberry Pi 5.**
+**Frigate NVR with NVIDIA GPU-accelerated object detection on an NVIDIA DGX Spark.**
 
-Argus is a minimal, fully local home security setup: Frigate running in Docker, accelerated by the Raspberry Pi AI HAT+ (Hailo-8), with a Logitech USB webcam as the camera input. No cloud, no subscriptions.
+Argus running on the DGX Spark uses the onboard **GB10 Blackwell GPU** for object detection via ONNX Runtime + CUDA. A looping [Kitware demo video](https://data.kitware.com/#item/56f5863a8d777f753209ca89) is used as the input camera stream.
+
+> **Branch:** `dgx-spark` — DGX Spark deployment.
+> See `main` for the Raspberry Pi 5 + Hailo-8 variant.
+
+---
 
 ## Hardware
 
-| Component | Part | Notes |
-|---|---|---|
-| SBC | Raspberry Pi 5 (8GB or 16GB) | |
-| AI accelerator | Raspberry Pi AI HAT+ (Hailo-8, 26 TOPS) | PCIe-attached, runs object detection |
-| Storage | USB SSD ≥256GB | SD cards wear out under continuous writes |
-| Camera | USB webcam (UVC-compatible) | Logitech C920/C922 recommended |
+| Component    | Detail |
+|--------------|--------|
+| Platform     | NVIDIA DGX Spark |
+| SoC          | NVIDIA GB10 Superchip (Grace Arm CPU + Blackwell GPU) |
+| GPU          | NVIDIA GB10 — Compute Capability 12.1 |
+| CUDA         | 13.0+ |
+| Architecture | aarch64 (ARM64) |
+| OS           | Ubuntu 24.04 LTS |
 
 ## Software
 
 | Component | Detail |
-|---|---|
-| OS | Raspberry Pi OS Trixie Lite (64-bit) |
-| Frigate | Docker (`ghcr.io/blakeblackshear/frigate:stable-h8l`) |
-| Detector | `hailo8l` — runs YOLOx on the Hailo-8 NPU |
-| MQTT | Mosquitto (Docker) — Frigate event bus |
+|-----------|--------|
+| OS        | Ubuntu 24.04 LTS (aarch64) |
+| Frigate   | Docker (`ghcr.io/blakeblackshear/frigate:stable`) |
+| Detector  | `onnx` — ONNX Runtime with CUDA execution provider on GB10 GPU |
+| MQTT      | Mosquitto (Docker) — Frigate event bus |
+
+---
 
 ## Quick start
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/argus.git
+git clone git@github.com:litmosstest/argus.git
 cd argus
+git checkout dgx-spark
 
-# 1. System setup (Docker, ffmpeg, webcam check)
-chmod +x scripts/setup.sh && ./scripts/setup.sh
+# 1. System setup (NVIDIA Container Toolkit, Docker runtime, demo video download)
+chmod +x scripts/setup.sh && sudo ./scripts/setup.sh
 
-# 2. Reboot if the kernel was upgraded (setup.sh will tell you if so)
-sudo reboot
-
-# 3. Install Hailo-8 driver
-# On Bookworm: reboots twice (re-run the script after the first reboot)
-# On Trixie:   reboots once
-chmod +x scripts/install_hailo.sh && ./scripts/install_hailo.sh
-
-# 4. After reboot — configure and start
-cp .env.example .env
+# 2. Review / edit environment file
 nano .env
-docker compose up -d
+
+# 3. Start
+sudo docker compose up -d
 ```
 
-Frigate web UI: `http://argus.local:8971`
+Frigate web UI: `http://<DGX_SPARK_IP>:5000`
+
+---
 
 ## Full setup guide
 
-### 1. Flash the OS
-
-Use [Raspberry Pi Imager](https://www.raspberrypi.com/software/) to write
-**Raspberry Pi OS Trixie (64-bit)** to your boot media.
-
-In Imager → Edit Settings before writing:
-- Enable SSH
-- Set username and password
-- Hostname: `argus`
-- Configure Wi-Fi (or skip for Ethernet)
-
-### 2. First boot
+### 1. Clone and check out the branch
 
 ```bash
-ssh pi@argus.local
-
-# Install git and curl if not present (Lite images may omit them)
-sudo apt update && sudo apt install -y git curl
-
-sudo apt full-upgrade -y
-sudo reboot
-```
-
-### 3. Mount a USB SSD (recommended)
-
-SD cards will wear out quickly under continuous recording writes.
-
-```bash
-lsblk                              # find your SSD — usually /dev/sda
-sudo mkfs.ext4 /dev/sda1           # WARNING: erases the drive
-sudo mkdir -p /mnt/recordings
-sudo mount /dev/sda1 /mnt/recordings
-echo '/dev/sda1 /mnt/recordings ext4 defaults,nofail 0 2' | sudo tee -a /etc/fstab
-```
-
-Set `RECORDINGS_PATH=/mnt/recordings/frigate` in `.env`.
-
-### 4. Clone and run setup
-
-```bash
-git clone https://github.com/YOUR_USERNAME/argus.git
+git clone git@github.com:litmosstest/argus.git
 cd argus
-chmod +x scripts/setup.sh && ./scripts/setup.sh
+git checkout dgx-spark
 ```
 
-### 5. Install Hailo-8 driver
+### 2. Verify the NVIDIA driver
 
 ```bash
-chmod +x scripts/install_hailo.sh && ./scripts/install_hailo.sh
+nvidia-smi
 ```
 
-The script downloads and runs Frigate's official Hailo installation script,
-which builds the PCIe driver from source, installs firmware, and sets up
-udev rules.
+Expected output: `NVIDIA GB10`, Driver ≥ 580, CUDA ≥ 13.0.
 
-> **Bookworm only:** On Raspberry Pi OS Bookworm the first run disables the
-> incompatible built-in kernel driver and reboots. SSH back in and
-> **re-run the script** to complete the install. Trixie users only need one run.
-
-After the final reboot, SSH back in and verify:
+### 3. Run the setup script
 
 ```bash
-ls -l /dev/hailo0
-lsmod | grep hailo_pci
-cat /sys/module/hailo_pci/version
-ls -l /lib/firmware/hailo/hailo8_fw.bin
+chmod +x scripts/setup.sh
+sudo ./scripts/setup.sh
 ```
 
-### 6. Configure
+`setup.sh` performs these steps automatically:
+
+| Step | Action |
+|------|--------|
+| 1 | Verify `nvidia-smi` reports the GB10 GPU |
+| 2 | Install NVIDIA Container Toolkit (if missing) |
+| 3 | Run `nvidia-ctk runtime configure --runtime=docker` and restart Docker |
+| 4 | Confirm GPU devices are visible inside a test container |
+| 5 | Install `curl`, `ffmpeg`, `jq`, `htop` (if missing) |
+| 6 | Download the Kitware demo video to `config/demo/kitware_demo.mp4` |
+| 7 | Create `data/recordings/` and `data/db/` |
+| 8 | Copy `.env.example` → `.env` |
+
+### 4. Configure
 
 ```bash
-cp .env.example .env
 nano .env
 ```
 
-Settings:
-
 | Variable | Default | Description |
-|---|---|---|
-| `TZ` | `Europe/London` | Timezone |
-| `WEBCAM_DEVICE` | `/dev/video0` | USB webcam device node |
-| `RECORDINGS_PATH` | `./data/recordings` | Where recordings are stored |
+|----------|---------|-------------|
+| `TZ` | `Europe/London` | Timezone for timestamps |
+| `RECORDINGS_PATH` | `./data/recordings` | Where Frigate stores recordings |
 
-Find your webcam device:
-
-```bash
-ls /dev/video*
-v4l2-ctl --list-devices
-```
-
-### 7. Start Frigate
+### 5. Start Frigate
 
 ```bash
-docker compose up -d
-docker compose logs -f frigate
+sudo docker compose up -d
+sudo docker compose logs -f frigate
 ```
 
-Open `http://argus.local:8971`. On first start Frigate prints admin credentials
-to the log — change the password under Settings → Users.
+On first start, Frigate pulls the image (~1–2 GB) and initialises the ONNX CUDA detector. This takes ~60 seconds. Watch for a line similar to:
 
-## Stopping and starting
-
-```bash
-docker compose down        # stop
-docker compose up -d       # start
-docker compose ps          # status
-docker compose logs -f     # live logs
+```
+[onnxruntime] CUDA execution provider registered — device: NVIDIA GB10
 ```
 
-## Adding cameras
+### 6. Open the web UI
 
-The default config (`config/frigate.yml`) uses a single USB webcam. To add
-RTSP PoE cameras, see [docs/cameras.md](docs/cameras.md).
+```
+http://<DGX_SPARK_IP>:5000
+```
+
+The `demo_camera` feed should be running with bounding boxes appearing over detected objects.
+
+---
+
+## How GPU acceleration works
+
+The official Frigate TensorRT image (`stable-tensorrt`) targets **x86_64 only**. The DGX Spark is **aarch64** with a full discrete-class NVIDIA GPU, so the correct path is:
+
+- Detector type: `onnx`
+- Device: `cuda:0`
+- Provider: ONNX Runtime CUDA execution provider (ships for aarch64)
+
+```yaml
+# config/frigate.yml
+detectors:
+  onnx_gpu:
+    type: onnx
+    device: cuda:0
+```
+
+The NVIDIA runtime passes GPU devices into the container:
+
+```yaml
+# docker-compose.yml
+runtime: nvidia
+environment:
+  NVIDIA_VISIBLE_DEVICES: all
+  NVIDIA_DRIVER_CAPABILITIES: all
+```
+
+---
+
+## Demo video stream
+
+`setup.sh` downloads a Kitware MP4 to `config/demo/kitware_demo.mp4`. go2rtc (embedded in Frigate) serves it as a looping RTSP stream via FFmpeg:
+
+```
+config/demo/kitware_demo.mp4
+        │
+        ▼  ffmpeg -stream_loop -1 -re
+   go2rtc  →  rtsp://127.0.0.1:8554/demo_camera
+        │
+        ▼
+   Frigate detect + record pipeline
+        │
+        ▼
+   Web UI  http://<host>:5000
+```
+
+To swap in a live RTSP camera, replace the `go2rtc.streams` entry in `config/frigate.yml`.
+
+---
 
 ## Project structure
 
 ```
 argus/
-├── docker-compose.yml
-├── .env.example
+├── docker-compose.yml         # Frigate + MQTT (NVIDIA runtime)
+├── .env.example               # Environment variable template
 ├── config/
-│   ├── frigate.yml        # Frigate NVR config (hailo8l detector, webcam)
-│   └── mosquitto.conf
-├── scripts/
-│   ├── setup.sh           # System setup (Docker, deps)
-│   └── install_hailo.sh   # Hailo-8 PCIe driver install
-└── docs/
-    ├── cameras.md          # Adding USB and RTSP cameras
-    ├── troubleshooting.md
-    ├── hardware-diagram.svg
-    └── software-diagram.svg
+│   ├── frigate.yml            # Frigate config (onnx/cuda detector, demo stream)
+│   └── mosquitto.conf         # MQTT broker config
+└── scripts/
+    └── setup.sh               # One-shot host setup for DGX Spark
 ```
+
+---
+
+## Stopping and starting
+
+```bash
+sudo docker compose down       # stop
+sudo docker compose up -d      # start
+sudo docker compose ps         # status
+sudo docker compose logs -f    # live logs
+```
+
+---
 
 ## Troubleshooting
 
-See [docs/troubleshooting.md](docs/troubleshooting.md).
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `Unknown runtime specified nvidia` | Docker not configured with NVIDIA runtime | Re-run `sudo ./scripts/setup.sh` |
+| GPU not visible inside container | Toolkit configured but Docker not restarted | `sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker` |
+| `demo_camera` shows Offline | Demo video missing | Check `config/demo/kitware_demo.mp4` exists; re-run `setup.sh` |
+| ONNX detector falls back to CPU | CUDA execution provider unavailable in image | Check `docker compose logs frigate` for ONNX CUDA errors; verify NVIDIA runtime is active |
+| CUDA error — SM 12.1 unsupported | Bundled ONNX Runtime predates Blackwell | Pull a newer Frigate image (`docker compose pull`), or set `device: cpu` as a fallback |
+| High `shm_size` usage / OOM | Multiple streams added | Increase `shm_size` in `docker-compose.yml` (~64 MB per additional 1080p stream) |
+
+---
 
 ## Licence
 

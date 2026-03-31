@@ -7,111 +7,127 @@
 # You may obtain a copy of the License at
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# setup.sh — one-shot system setup for Argus
-# Run once on a freshly flashed Raspberry Pi OS Lite (64-bit)
-# Usage: chmod +x scripts/setup.sh && ./scripts/setup.sh
+# setup.sh — one-shot system setup for Argus on NVIDIA DGX Spark
+# Run once on a freshly provisioned DGX Spark (Ubuntu 24.04, aarch64)
+# Usage: chmod +x scripts/setup.sh && sudo ./scripts/setup.sh
 
 set -euo pipefail
 
-# Resolve repo root regardless of where the script is called from
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARGUS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+DEMO_VIDEO_URL="https://data.kitware.com/api/v1/item/56f5863a8d777f753209ca89/download"
+DEMO_VIDEO_DEST="$ARGUS_DIR/config/demo/kitware_demo.mp4"
+
 echo ""
-echo "╔══════════════════════════════════════╗"
-echo "║          Argus — system setup        ║"
-echo "╚══════════════════════════════════════╝"
+echo "╔════════════════════════════════════════════╗"
+echo "║   Argus — DGX Spark system setup          ║"
+echo "╚════════════════════════════════════════════╝"
 echo ""
 echo "Repo root: $ARGUS_DIR"
 echo ""
 
-# ─── System update ────────────────────────────────────────────────────────────
-echo "► Updating system packages..."
-sudo apt update -qq && sudo apt full-upgrade -y -qq
+# ─── Verify NVIDIA driver ─────────────────────────────────────────────────────
+echo "► Checking NVIDIA driver..."
+if ! command -v nvidia-smi &>/dev/null; then
+    echo "  ERROR: nvidia-smi not found. Install the NVIDIA driver first."
+    exit 1
+fi
+nvidia-smi --query-gpu=name,driver_version,compute_cap --format=csv,noheader \
+    | sed 's/^/  GPU: /'
+
+# ─── NVIDIA Container Toolkit ────────────────────────────────────────────────
+echo ""
+echo "► Checking NVIDIA Container Toolkit..."
+if ! dpkg -l nvidia-container-toolkit &>/dev/null 2>&1; then
+    echo "  Installing NVIDIA Container Toolkit..."
+    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+        | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+    curl -sL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+        | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+        | tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+    apt-get update -qq
+    apt-get install -y nvidia-container-toolkit
+    echo "  ✓ NVIDIA Container Toolkit installed"
+else
+    echo "  ✓ NVIDIA Container Toolkit already installed"
+fi
+
+# ─── Configure Docker NVIDIA runtime ─────────────────────────────────────────
+echo ""
+echo "► Configuring Docker NVIDIA runtime..."
+if ! command -v docker &>/dev/null; then
+    echo "  Installing Docker..."
+    curl -fsSL https://get.docker.com | sh
+    echo "  ✓ Docker installed"
+fi
+
+nvidia-ctk runtime configure --runtime=docker
+systemctl restart docker
+echo "  ✓ Docker restarted with NVIDIA runtime"
+
+# ─── Verify GPU in container ──────────────────────────────────────────────────
+echo ""
+echo "► Verifying GPU visibility inside Docker..."
+if docker run --rm --runtime=nvidia \
+    -e NVIDIA_VISIBLE_DEVICES=all \
+    ubuntu:24.04 \
+    bash -c "ls /dev/nvidia* 2>/dev/null | head -5" 2>/dev/null | grep -q nvidia; then
+    echo "  ✓ NVIDIA devices visible inside Docker"
+else
+    echo "  ⚠  Could not confirm GPU device visibility. Check NVIDIA Container Toolkit."
+fi
 
 # ─── Core dependencies ────────────────────────────────────────────────────────
+echo ""
 echo "► Installing system dependencies..."
-sudo apt install -y \
-    curl git jq htop wget \
-    v4l-utils \
-    ffmpeg \
-    dkms \
-    linux-headers-$(uname -r)
+apt-get install -y -qq curl ffmpeg jq htop
 
-# ─── Docker ───────────────────────────────────────────────────────────────────
-if ! command -v docker &>/dev/null; then
-    echo "► Installing Docker..."
-    curl -fsSL https://get.docker.com | sh
-    sudo usermod -aG docker "$USER"
-    echo "  ✓ Docker installed"
-    echo "  ⚠  Log out and back in (or run 'newgrp docker') for group changes to take effect"
-else
-    echo "► Docker: $(docker --version)"
-fi
-
-# ─── USB SSD ──────────────────────────────────────────────────────────────────
+# ─── Download Kitware demo video ──────────────────────────────────────────────
 echo ""
-echo "► USB storage devices:"
-USB=$(lsblk -d -o NAME,TRAN,SIZE,MODEL | grep -i usb || echo "  (none detected)")
-echo "$USB" | sed 's/^/  /'
-if echo "$USB" | grep -qi usb; then
-    echo ""
-    echo "  To configure the SSD for recordings:"
-    echo "    sudo mkfs.ext4 /dev/sda1       # WARNING: erases the drive"
-    echo "    sudo mkdir -p /mnt/recordings"
-    echo "    sudo mount /dev/sda1 /mnt/recordings"
-    echo "    echo '/dev/sda1 /mnt/recordings ext4 defaults,nofail 0 2' | sudo tee -a /etc/fstab"
-    echo "  Then set RECORDINGS_PATH=/mnt/recordings/frigate in .env"
+echo "► Downloading Kitware demo video..."
+mkdir -p "$(dirname "$DEMO_VIDEO_DEST")"
+
+if [ -f "$DEMO_VIDEO_DEST" ]; then
+    echo "  ✓ Demo video already present: $DEMO_VIDEO_DEST"
+else
+    echo "  Fetching from $DEMO_VIDEO_URL"
+    curl -L --progress-bar -o "$DEMO_VIDEO_DEST" "$DEMO_VIDEO_URL"
+    echo "  ✓ Saved to: $DEMO_VIDEO_DEST"
 fi
 
-# ─── Webcam ───────────────────────────────────────────────────────────────────
-echo ""
-echo "► Video devices:"
-if ls /dev/video* &>/dev/null; then
-    v4l2-ctl --list-devices 2>/dev/null | sed 's/^/  /' || ls /dev/video* | sed 's/^/  /'
+# Confirm video is readable by ffprobe
+if ffprobe -v quiet -show_entries format=duration "$DEMO_VIDEO_DEST" &>/dev/null; then
+    echo "  ✓ Video is valid"
 else
-    echo "  ⚠  No /dev/video* found — plug in webcam and re-run"
+    echo "  ⚠  ffprobe could not read the video — check the download."
 fi
+
+# ─── Data directories ─────────────────────────────────────────────────────────
+echo ""
+echo "► Creating data directories..."
+mkdir -p "$ARGUS_DIR/data/recordings" "$ARGUS_DIR/data/db"
+echo "  ✓ data/recordings  data/db"
 
 # ─── .env ─────────────────────────────────────────────────────────────────────
 ENV_EXAMPLE="$ARGUS_DIR/.env.example"
 ENV_FILE="$ARGUS_DIR/.env"
 
 if [ ! -f "$ENV_FILE" ]; then
-    if [ -f "$ENV_EXAMPLE" ]; then
-        echo ""
-        echo "► Creating .env from template..."
-        cp "$ENV_EXAMPLE" "$ENV_FILE"
-        echo "  Edit $ENV_FILE before starting services."
-    else
-        echo "  ⚠  .env.example not found at $ENV_EXAMPLE"
-    fi
+    cp "$ENV_EXAMPLE" "$ENV_FILE"
+    echo ""
+    echo "► Created .env from template — edit $ENV_FILE before starting services."
 else
     echo "► .env already exists — skipping"
 fi
 
-# ─── Data dirs ────────────────────────────────────────────────────────────────
-mkdir -p "$ARGUS_DIR/data/recordings" "$ARGUS_DIR/data/db"
-
 echo ""
-echo "╔══════════════════════════════════════╗"
-echo "║           Setup complete ✓           ║"
-echo "╚══════════════════════════════════════╝"
+echo "╔════════════════════════════════════════════╗"
+echo "║           Setup complete ✓                ║"
+echo "╚════════════════════════════════════════════╝"
 echo ""
-
-if [ -f /var/run/reboot-required ]; then
-    echo "⚠  A kernel upgrade was installed. Reboot before running install_hailo.sh"
-    echo "   (building the driver against the wrong kernel headers will silently fail)"
-    echo ""
-    echo "Next steps:"
-    echo "  1.  Reboot:                 sudo reboot"
-    echo "  2.  Install Hailo driver:   ./scripts/install_hailo.sh"
-    echo "  3.  Edit environment:       nano $ENV_FILE"
-    echo "  4.  Start Frigate:          docker compose up -d"
-else
-    echo "Next steps:"
-    echo "  1.  Install Hailo driver:   ./scripts/install_hailo.sh"
-    echo "  2.  Edit environment:       nano $ENV_FILE"
-    echo "  3.  Start Frigate:          docker compose up -d"
-fi
+echo "Next steps:"
+echo "  1.  Edit environment:    nano $ENV_FILE"
+echo "  2.  Start Frigate:       docker compose up -d"
+echo "  3.  Open web UI:         http://$(hostname -I | awk '{print $1}'):5000"
 echo ""

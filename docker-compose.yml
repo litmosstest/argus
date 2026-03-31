@@ -1,35 +1,36 @@
 services:
 
   # ─── Frigate NVR ──────────────────────────────────────────────────────────
-  # Object detection runs on the Hailo-8 NPU (hailo8l detector).
-  # /dev/hailo0 is passed through so Frigate can access the PCIe device.
+  # Object detection runs on the NVIDIA GB10 GPU (ONNX Runtime + CUDA).
+  # The NVIDIA Container Toolkit runtime is required — run scripts/setup.sh first.
   frigate:
     container_name: frigate
-    image: ghcr.io/blakeblackshear/frigate:stable-h8l
+    image: ghcr.io/blakeblackshear/frigate:stable
     restart: unless-stopped
     stop_grace_period: 30s
     privileged: true
     shm_size: "256mb"
-    devices:
-      - ${WEBCAM_DEVICE:-/dev/video0}:/dev/video0
-      - /dev/hailo0:/dev/hailo0
+    runtime: nvidia
+    environment:
+      TZ: ${TZ:-Europe/London}
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ./config/frigate.yml:/config/config.yml:ro
+      - ./config/demo:/config/demo:ro
       - ${RECORDINGS_PATH:-./data/recordings}:/media/frigate
       - ./data/db:/data/db
       - type: tmpfs
         target: /tmp/cache
         tmpfs:
-          size: 512000000
+          size: 1073741824
     ports:
       - "8971:8971"
       - "5000:5000"
       - "8554:8554"
       - "8555:8555/tcp"
       - "8555:8555/udp"
-    environment:
-      TZ: ${TZ:-Europe/London}
     depends_on:
       - mqtt
     healthcheck:
