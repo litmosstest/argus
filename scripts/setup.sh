@@ -103,6 +103,20 @@ else
     echo "  ⚠  ffprobe could not read the video — check the download."
 fi
 
+# Transcode to H.264 if not already (go2rtc uses #video=copy — needs native H.264)
+VIDEO_CODEC=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=codec_name \
+    -of default=noprint_wrappers=1:nokey=1 "$DEMO_VIDEO_DEST" 2>/dev/null)
+if [ "$VIDEO_CODEC" != "h264" ]; then
+    echo "  Video codec is '$VIDEO_CODEC', transcoding to H.264..."
+    TRANSCODE_TMP="${DEMO_VIDEO_DEST}.h264.mp4"
+    ffmpeg -y -i "$DEMO_VIDEO_DEST" -c:v libx264 -preset medium -crf 22 -an \
+        -movflags +faststart "$TRANSCODE_TMP" 2>/dev/null
+    mv "$TRANSCODE_TMP" "$DEMO_VIDEO_DEST"
+    echo "  ✓ Transcoded to H.264"
+else
+    echo "  ✓ Video is already H.264"
+fi
+
 # ─── Export YOLOv8n ONNX detection model ─────────────────────────────────────
 echo ""
 echo "► Exporting YOLOv8n ONNX model (320×320)..."
