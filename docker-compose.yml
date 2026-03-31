@@ -17,7 +17,7 @@ services:
       NVIDIA_DRIVER_CAPABILITIES: all
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ./config/frigate.yml:/config/config.yml:ro
+      - ./config/frigate.yml:/config/config.yml
       - ./config/demo:/config/demo:ro
       - ${RECORDINGS_PATH:-./data/recordings}:/media/frigate
       - ./data/db:/data/db

@@ -20,19 +20,29 @@ detectors:
     type: onnx
     device: cuda:0
 
+# model_type tells Frigate which ONNX model to load/download.
+# yolox at 320x320 is lightweight; increase to 640x640 for higher accuracy.
+model:
+  model_type: yolox
+  width: 320
+  height: 320
+  input_tensor: nhwc
+  input_pixel_format: rgb
+  input_dtype: int
+  labelmap_path: /labelmap/coco-80.txt
+
 # ─── Demo video stream ───────────────────────────────────────────────────────
 # The Kitware MP4 is looped at native frame rate via FFmpeg inside go2rtc.
 # Download it first with:  scripts/setup.sh  (or see README)
 go2rtc:
   streams:
     demo_camera:
-      - "ffmpeg:-stream_loop -1 -re -i /config/demo/kitware_demo.mp4#video=copy"
+      - "ffmpeg:-stream_loop -1 -re -i /config/demo/kitware_demo.mp4#video=h264"
 
 objects:
   track:
     - person
     - car
-    - truck
     - bicycle
     - motorcycle
   filters:
