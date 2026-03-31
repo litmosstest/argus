@@ -19,6 +19,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ./config/frigate.yml:/config/config.yml
       - ./config/demo:/config/demo:ro
+      - ./config/model_cache:/config/model_cache:ro
       - ${RECORDINGS_PATH:-./data/recordings}:/media/frigate
       - ./data/db:/data/db
       - type: tmpfs

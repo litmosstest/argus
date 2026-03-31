@@ -81,7 +81,7 @@ fi
 # ─── Core dependencies ────────────────────────────────────────────────────────
 echo ""
 echo "► Installing system dependencies..."
-apt-get install -y -qq curl ffmpeg jq htop
+apt-get install -y -qq curl ffmpeg jq htop python3-venv python3-pip
 
 # ─── Download Kitware demo video ──────────────────────────────────────────────
 echo ""
@@ -103,7 +103,35 @@ else
     echo "  ⚠  ffprobe could not read the video — check the download."
 fi
 
-# ─── Data directories ─────────────────────────────────────────────────────────
+# ─── Export YOLOv8n ONNX detection model ─────────────────────────────────────
+echo ""
+echo "► Exporting YOLOv8n ONNX model (320×320)..."
+MODEL_DEST="$ARGUS_DIR/config/model_cache/yolov8n_320.onnx"
+mkdir -p "$(dirname "$MODEL_DEST")"
+
+if [ -f "$MODEL_DEST" ]; then
+    echo "  ✓ Model already present: $MODEL_DEST"
+else
+    VENV_DIR="/tmp/argus_ml_env"
+    echo "  Creating Python venv and installing dependencies..."
+    python3 -m venv "$VENV_DIR" --clear
+    # Install onnx deps first — ultralytics auto-install fails on Ubuntu 24.04 (PEP 668)
+    "$VENV_DIR/bin/pip" install ultralytics onnx onnxslim onnxruntime --quiet
+
+    echo "  Exporting to ONNX..."
+    EXPORT_TMP=$(mktemp -d)
+    pushd "$EXPORT_TMP" > /dev/null
+    "$VENV_DIR/bin/python3" -c "
+from ultralytics import YOLO
+import shutil
+YOLO('yolov8n.pt').export(format='onnx', imgsz=320, simplify=True)
+shutil.move('yolov8n.onnx', '$MODEL_DEST')
+print('  ✓ Model saved')
+"
+    popd > /dev/null
+    rm -rf "$EXPORT_TMP"
+    echo "  ✓ Saved to: $MODEL_DEST"
+fi
 echo ""
 echo "► Creating data directories..."
 mkdir -p "$ARGUS_DIR/data/recordings" "$ARGUS_DIR/data/db"
