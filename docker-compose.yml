@@ -34,6 +34,7 @@ services:
       - "8555:8555/udp"
     depends_on:
       - mqtt
+      - ollama
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/version"]
       interval: 30s
@@ -53,6 +54,21 @@ services:
       - mosquitto-log:/mosquitto/log
     ports:
       - "1883:1883"
+
+  # ─── Local Ollama server for Frigate GenAI labeling ──────────────────────
+  ollama:
+    container_name: ollama
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      OLLAMA_NUM_PARALLEL: 1
+      OLLAMA_MAX_QUEUE: 2
+      OLLAMA_MAX_LOADED_MODELS: 1
+    volumes:
+      - ./data/ollama:/root/.ollama
 
 volumes:
   mosquitto-data:
